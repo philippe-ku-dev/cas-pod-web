@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/button'
 import { useUniversityInfo, useHasUniversityRole } from '@/hooks/useContracts'
 import { formatAddress } from '@/lib/utils'
 import Link from 'next/link'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function UniversityDashboardPage() {
   const { address, isConnected } = useAccount()
@@ -92,47 +96,37 @@ export default function UniversityDashboardPage() {
                 
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <Badge variant="secondary">
                       Registered
-                    </span>
+                    </Badge>
                     {isApproved ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
                         Approved
-                      </span>
+                      </Badge>
                     ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      <Badge variant="outline" className="border-yellow-300 text-yellow-800">
                         Pending Approval
-                      </span>
+                      </Badge>
                     )}
                     {hasUniversityRole && (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      <Badge variant="outline" className="border-purple-300 text-purple-800">
                         University Role
-                      </span>
+                      </Badge>
                     )}
                   </div>
                 </div>
 
                 {!isApproved && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-yellow-800">
-                          Approval Pending
-                        </h3>
-                        <div className="mt-2 text-sm text-yellow-700">
-                          <p>
-                            Your university registration is pending approval from an administrator. 
-                            You cannot issue diplomas until approved.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <Alert className="border-yellow-200 bg-yellow-50">
+                    <svg className="h-4 w-4 text-yellow-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <AlertDescription className="text-yellow-800">
+                      <div className="font-medium mb-1">Approval Pending</div>
+                      Your university registration is pending approval from an administrator. 
+                      You cannot issue diplomas until approved.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
             )}
@@ -267,32 +261,26 @@ function UniversityRegistrationForm({ onCancel }: { onCancel: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-          University Name
-        </label>
-        <input
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <Label htmlFor="name">University Name</Label>
+        <Input
           id="name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Enter university name"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           required
         />
       </div>
-      <div>
-        <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-2">
-          Country
-        </label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="country">Country</Label>
+        <Input
           id="country"
           type="text"
           value={country}
           onChange={(e) => setCountry(e.target.value)}
           placeholder="Enter country"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           required
         />
       </div>
@@ -333,32 +321,26 @@ function IssueDiplomaForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="studentAddress" className="block text-sm font-medium text-gray-700 mb-2">
-          Student Wallet Address
-        </label>
-        <input
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <Label htmlFor="studentAddress">Student Wallet Address</Label>
+        <Input
           id="studentAddress"
           type="text"
           value={studentAddress}
           onChange={(e) => setStudentAddress(e.target.value)}
           placeholder="0x..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           required
         />
       </div>
-      <div>
-        <label htmlFor="diplomaHash" className="block text-sm font-medium text-gray-700 mb-2">
-          Diploma Metadata Hash
-        </label>
-        <input
+      <div className="space-y-2">
+        <Label htmlFor="diplomaHash">Diploma Metadata Hash</Label>
+        <Input
           id="diplomaHash"
           type="text"
           value={diplomaHash}
           onChange={(e) => setDiplomaHash(e.target.value)}
           placeholder="QmExample... (IPFS hash)"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           required
         />
       </div>
