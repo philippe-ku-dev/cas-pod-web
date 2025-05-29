@@ -1,11 +1,13 @@
 'use client'
 
-import { useAccount } from 'wagmi'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useStudentDiplomas } from '@/hooks/useContracts'
 import { formatAddress } from '@/lib/utils'
+import { CONTRACTS, tokenAbi } from '@/lib/contracts'
 import Link from 'next/link'
 
 export default function StudentDashboardPage() {
@@ -169,8 +171,50 @@ export default function StudentDashboardPage() {
 
 // Component for individual diploma cards
 function DiplomaCard({ diplomaId }: { diplomaId: string }) {
+  // Contract interaction hooks for minting
+  const { 
+    writeContract: mintDiploma, 
+    isPending: isMinting,
+    data: mintTxHash,
+    error: mintError 
+  } = useWriteContract()
+
+  const { isLoading: isMintTxLoading, isSuccess: isMintTxSuccess } = useWaitForTransactionReceipt({
+    hash: mintTxHash,
+  })
+
+  const handleMintNFT = async () => {
+    try {
+      await mintDiploma({
+        address: CONTRACTS.TOKEN,
+        abi: tokenAbi,
+        functionName: 'mintDiploma',
+        args: [diplomaId as `0x${string}`, `https://metadata.pod-chain.io/${diplomaId}`],
+      })
+    } catch (error) {
+      console.error('Minting failed:', error)
+    }
+  }
+
   return (
     <div className="border rounded-lg p-4 bg-white">
+      {/* Minting Status Messages */}
+      {mintError && (
+        <Alert className="mb-4 border-red-200 bg-red-50">
+          <AlertDescription className="text-red-800">
+            Minting failed: {mintError.message || 'An error occurred'}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isMintTxSuccess && (
+        <Alert className="mb-4 border-green-200 bg-green-50">
+          <AlertDescription className="text-green-800">
+            NFT minted successfully! Check your wallet.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h4 className="font-semibold text-gray-900">Diploma</h4>
@@ -182,7 +226,13 @@ function DiplomaCard({ diplomaId }: { diplomaId: string }) {
           <Button size="sm" variant="outline" asChild>
             <Link href={`/verify?id=${diplomaId}`}>View Details</Link>
           </Button>
-          <Button size="sm">Mint NFT</Button>
+          <Button 
+            size="sm" 
+            onClick={handleMintNFT}
+            disabled={isMinting || isMintTxLoading}
+          >
+            {isMinting || isMintTxLoading ? 'Minting...' : 'Mint NFT'}
+          </Button>
         </div>
       </div>
     </div>

@@ -1,17 +1,18 @@
 'use client'
 
-import { useState } from 'react'
-import { useAccount } from 'wagmi'
+import { useState, useEffect } from 'react'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { useUniversityInfo, useHasUniversityRole } from '@/hooks/useContracts'
-import { formatAddress } from '@/lib/utils'
-import Link from 'next/link'
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { CONTRACTS, registryAbi, diplomaAbi } from '@/lib/contracts'
+import { useHasUniversityRole, useUniversityInfo } from '@/hooks/useContracts'
+import { formatAddress } from '@/lib/utils'
+import Link from 'next/link'
 
 export default function UniversityDashboardPage() {
   const { address, isConnected } = useAccount()
@@ -241,27 +242,64 @@ export default function UniversityDashboardPage() {
 function UniversityRegistrationForm({ onCancel }: { onCancel: () => void }) {
   const [name, setName] = useState('')
   const [country, setCountry] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Contract interaction hooks
+  const { 
+    writeContract: registerUniversity, 
+    isPending: isRegistering,
+    data: registerTxHash,
+    error: registerError 
+  } = useWriteContract()
+
+  const { isLoading: isRegisterTxLoading, isSuccess: isRegisterTxSuccess } = useWaitForTransactionReceipt({
+    hash: registerTxHash,
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || !country.trim()) return
 
-    setIsSubmitting(true)
     try {
-      // TODO: Implement actual registration logic
-      console.log('Registering university:', { name, country })
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate API call
-      onCancel() // Close form on success
+      await registerUniversity({
+        address: CONTRACTS.REGISTRY,
+        abi: registryAbi,
+        functionName: 'registerUniversity',
+        args: [name.trim(), country.trim()],
+      })
     } catch (error) {
       console.error('Registration failed:', error)
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
+  // Close form and reset on success
+  useEffect(() => {
+    if (isRegisterTxSuccess) {
+      setName('')
+      setCountry('')
+      setTimeout(() => onCancel(), 2000) // Close after showing success message
+    }
+  }, [isRegisterTxSuccess, onCancel])
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Error Alert */}
+      {registerError && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertDescription className="text-red-800">
+            Registration failed: {registerError.message || 'An error occurred'}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Success Alert */}
+      {isRegisterTxSuccess && (
+        <Alert className="border-green-200 bg-green-50">
+          <AlertDescription className="text-green-800">
+            University registered successfully! Awaiting admin approval.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="name">University Name</Label>
         <Input
@@ -271,6 +309,7 @@ function UniversityRegistrationForm({ onCancel }: { onCancel: () => void }) {
           onChange={(e) => setName(e.target.value)}
           placeholder="Enter university name"
           required
+          disabled={isRegistering || isRegisterTxLoading}
         />
       </div>
       <div className="space-y-2">
@@ -282,13 +321,17 @@ function UniversityRegistrationForm({ onCancel }: { onCancel: () => void }) {
           onChange={(e) => setCountry(e.target.value)}
           placeholder="Enter country"
           required
+          disabled={isRegistering || isRegisterTxLoading}
         />
       </div>
       <div className="flex gap-2">
-        <Button type="submit" disabled={isSubmitting || !name.trim() || !country.trim()}>
-          {isSubmitting ? 'Registering...' : 'Register University'}
+        <Button 
+          type="submit" 
+          disabled={isRegistering || isRegisterTxLoading || !name.trim() || !country.trim()}
+        >
+          {isRegistering || isRegisterTxLoading ? 'Registering...' : 'Register University'}
         </Button>
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isRegistering || isRegisterTxLoading}>
           Cancel
         </Button>
       </div>
@@ -300,28 +343,63 @@ function UniversityRegistrationForm({ onCancel }: { onCancel: () => void }) {
 function IssueDiplomaForm() {
   const [studentAddress, setStudentAddress] = useState('')
   const [diplomaHash, setDiplomaHash] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Contract interaction hooks
+  const { 
+    writeContract: generateDiploma, 
+    isPending: isGenerating,
+    data: generateTxHash,
+    error: generateError 
+  } = useWriteContract()
+
+  const { isLoading: isGenerateTxLoading, isSuccess: isGenerateTxSuccess } = useWaitForTransactionReceipt({
+    hash: generateTxHash,
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!studentAddress.trim() || !diplomaHash.trim()) return
 
-    setIsSubmitting(true)
     try {
-      // TODO: Implement actual diploma issuance logic
-      console.log('Issuing diploma:', { studentAddress, diplomaHash })
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate API call
-      setStudentAddress('')
-      setDiplomaHash('')
+      await generateDiploma({
+        address: CONTRACTS.DIPLOMA,
+        abi: diplomaAbi,
+        functionName: 'generateDiploma',
+        args: [studentAddress.trim() as `0x${string}`, diplomaHash.trim()],
+      })
     } catch (error) {
-      console.error('Diploma issuance failed:', error)
-    } finally {
-      setIsSubmitting(false)
+      console.error('Diploma generation failed:', error)
     }
   }
 
+  // Reset form on success
+  useEffect(() => {
+    if (isGenerateTxSuccess) {
+      setStudentAddress('')
+      setDiplomaHash('')
+    }
+  }, [isGenerateTxSuccess])
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Error Alert */}
+      {generateError && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertDescription className="text-red-800">
+            Diploma generation failed: {generateError.message || 'An error occurred'}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Success Alert */}
+      {isGenerateTxSuccess && (
+        <Alert className="border-green-200 bg-green-50">
+          <AlertDescription className="text-green-800">
+            Diploma issued successfully! The student can now mint their NFT.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="studentAddress">Student Wallet Address</Label>
         <Input
@@ -331,6 +409,7 @@ function IssueDiplomaForm() {
           onChange={(e) => setStudentAddress(e.target.value)}
           placeholder="0x..."
           required
+          disabled={isGenerating || isGenerateTxLoading}
         />
       </div>
       <div className="space-y-2">
@@ -342,10 +421,14 @@ function IssueDiplomaForm() {
           onChange={(e) => setDiplomaHash(e.target.value)}
           placeholder="QmExample... (IPFS hash)"
           required
+          disabled={isGenerating || isGenerateTxLoading}
         />
       </div>
-      <Button type="submit" disabled={isSubmitting || !studentAddress.trim() || !diplomaHash.trim()}>
-        {isSubmitting ? 'Issuing...' : 'Issue Diploma'}
+      <Button 
+        type="submit" 
+        disabled={isGenerating || isGenerateTxLoading || !studentAddress.trim() || !diplomaHash.trim()}
+      >
+        {isGenerating || isGenerateTxLoading ? 'Issuing...' : 'Issue Diploma'}
       </Button>
     </form>
   )
