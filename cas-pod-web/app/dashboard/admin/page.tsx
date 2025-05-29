@@ -1,33 +1,146 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { formatAddress, parseWagmiError } from '@/lib/utils'
-import { CONTRACTS, accessControlAbi } from '@/lib/contracts'
-import { useHasAdminRole, useAllUniversities } from '@/hooks/useContracts'
+import { formatAddress } from '@/lib/utils'
+import { CONTRACTS, accessControlAbi, registryAbi } from '@/lib/contracts'
+import { useHasAdminRole, useAllUniversities, useUniversityInfo } from '@/hooks/useContracts'
 
-interface UniversityProfile {
+interface UniversityData {
+  address: string
   name: string
-  metadataURI: string
-  isVerified: boolean
-  profileCID: string
+  country: string
+  isApproved: boolean
+  isRegistered: boolean
+}
+
+// Component to load and display individual university data
+function UniversityItem({ 
+  address, 
+  onApprove, 
+  isApproving, 
+  isApproveTxLoading 
+}: { 
+  address: string
+  onApprove: (address: string) => void
+  isApproving: boolean
+  isApproveTxLoading: boolean
+}) {
+  const { data: universityInfo, isLoading } = useUniversityInfo(address as `0x${string}`)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+        <div>
+          <h3 className="font-semibold">Loading...</h3>
+          <p className="text-sm text-gray-600">Address: {formatAddress(address)}</p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="h-5 w-16 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const name = universityInfo?.[0] || `University ${address.slice(0, 6)}`
+  const country = universityInfo?.[1] || 'Unknown'
+  const isApproved = universityInfo?.[2] || false
+  const isRegistered = universityInfo?.[3] || false
+
+  // Only show if registered but not approved (pending)
+  if (!isRegistered || isApproved) {
+    return null
+  }
+
+  return (
+    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+      <div>
+        <h3 className="font-semibold">{name}</h3>
+        <p className="text-sm text-gray-600">
+          Address: {formatAddress(address)}
+        </p>
+        <p className="text-sm text-gray-600">
+          Country: {country}
+        </p>
+        <div className="flex items-center gap-2 mt-2">
+          <Badge variant="outline" className="border-yellow-300 text-yellow-800">
+            Pending Approval
+          </Badge>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button
+          onClick={() => onApprove(address)}
+          disabled={isApproving || isApproveTxLoading}
+          size="sm"
+        >
+          {isApproving || isApproveTxLoading ? 'Approving...' : 'Approve'}
+        </Button>
+        <Button variant="outline" size="sm" disabled>
+          Reject
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// Component for approved universities
+function ApprovedUniversityItem({ address }: { address: string }) {
+  const { data: universityInfo, isLoading } = useUniversityInfo(address as `0x${string}`)
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+        <div>
+          <h3 className="font-semibold">Loading...</h3>
+          <p className="text-sm text-gray-600">Address: {formatAddress(address)}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const name = universityInfo?.[0] || `University ${address.slice(0, 6)}`
+  const country = universityInfo?.[1] || 'Unknown'
+  const isApproved = universityInfo?.[2] || false
+
+  // Only show if approved
+  if (!isApproved) {
+    return null
+  }
+
+  return (
+    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+      <div>
+        <h3 className="font-semibold">{name}</h3>
+        <p className="text-sm text-gray-600">
+          Address: {formatAddress(address)}
+        </p>
+        <p className="text-sm text-gray-600">
+          Country: {country}
+        </p>
+        <div className="flex items-center gap-2 mt-2">
+          <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
+            Approved
+          </Badge>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function AdminPage() {
   const { address, isConnected } = useAccount()
-  const [pendingUniversities, setPendingUniversities] = useState<string[]>([])
-  const [universityProfiles, setUniversityProfiles] = useState<Record<string, UniversityProfile>>({})
 
   // Check if current user is admin
   const { data: isAdmin } = useHasAdminRole(address)
 
   // Get all universities
-  const { data: allUniversities } = useAllUniversities()
+  const { data: allUniversities, refetch: refetchUniversities } = useAllUniversities()
 
   // Write contract hook for approving universities
   const { 
@@ -42,32 +155,12 @@ export default function AdminPage() {
     hash: approveTxHash,
   })
 
-  // Mock function to simulate getting pending universities
-  // In a real app, you'd get this from events or a backend service
+  // Refetch data after successful approval
   useEffect(() => {
-    // This would be replaced with actual contract events or backend API
-    const mockPendingUniversities = [
-      '0x1234567890123456789012345678901234567890',
-      '0x2345678901234567890123456789012345678901',
-    ]
-    setPendingUniversities(mockPendingUniversities)
-
-    // Mock university profiles
-    setUniversityProfiles({
-      '0x1234567890123456789012345678901234567890': {
-        name: 'Harvard University',
-        metadataURI: 'https://ipfs.io/ipfs/QmHarvard',
-        isVerified: false,
-        profileCID: 'QmHarvard'
-      },
-      '0x2345678901234567890123456789012345678901': {
-        name: 'MIT',
-        metadataURI: 'https://ipfs.io/ipfs/QmMIT',
-        isVerified: false,
-        profileCID: 'QmMIT'
-      }
-    })
-  }, [])
+    if (isApproveTxSuccess) {
+      refetchUniversities()
+    }
+  }, [isApproveTxSuccess, refetchUniversities])
 
   const handleApproveUniversity = async (universityAddress: string) => {
     try {
@@ -146,35 +239,35 @@ export default function AdminPage() {
           </Alert>
         )}
 
-        {/* Platform Statistics */}
+        {/* Platform Statistics - Real Data */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
-              <div className="text-2xl font-bold text-blue-600">{pendingUniversities.length}</div>
+              <div className="text-2xl font-bold text-blue-600">-</div>
               <p className="text-sm text-gray-600">Pending Approvals</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              <div className="text-2xl font-bold text-green-600">{allUniversities?.length || 0}</div>
+              <div className="text-2xl font-bold text-green-600">-</div>
+              <p className="text-sm text-gray-600">Approved Universities</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold text-purple-600">{allUniversities?.length || 0}</div>
               <p className="text-sm text-gray-600">Total Universities</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              <div className="text-2xl font-bold text-purple-600">1,234</div>
+              <div className="text-2xl font-bold text-orange-600">-</div>
               <p className="text-sm text-gray-600">Total Diplomas</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-2xl font-bold text-orange-600">567</div>
-              <p className="text-sm text-gray-600">Active Students</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Pending University Approvals */}
+        {/* Pending University Approvals - Real Data */}
         <Card>
           <CardHeader>
             <CardTitle>Pending University Approvals</CardTitle>
@@ -183,52 +276,50 @@ export default function AdminPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {pendingUniversities.length === 0 ? (
+            {!allUniversities ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2">Loading universities...</p>
+              </div>
+            ) : allUniversities.length === 0 ? (
               <p className="text-gray-500 text-center py-8">
-                No pending university approvals
+                No universities registered yet
               </p>
             ) : (
               <div className="space-y-4">
-                {pendingUniversities.map((universityAddress) => {
-                  const profile = universityProfiles[universityAddress]
-                  if (!profile) return null
+                {allUniversities.map((universityAddress) => (
+                  <UniversityItem
+                    key={universityAddress}
+                    address={universityAddress}
+                    onApprove={handleApproveUniversity}
+                    isApproving={isApproving}
+                    isApproveTxLoading={isApproveTxLoading}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-                  return (
-                    <div key={universityAddress} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                      <div>
-                        <h3 className="font-semibold">{profile.name}</h3>
-                        <p className="text-sm text-gray-600">
-                          Address: {formatAddress(universityAddress)}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="outline">Pending Approval</Badge>
-                          {profile.profileCID && (
-                            <a 
-                              href={`https://ipfs.io/ipfs/${profile.profileCID}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:text-blue-800"
-                            >
-                              View Profile →
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleApproveUniversity(universityAddress)}
-                          disabled={isApproving || isApproveTxLoading}
-                          size="sm"
-                        >
-                          {isApproving || isApproveTxLoading ? 'Approving...' : 'Approve'}
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          Reject
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
+        {/* Approved Universities */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Approved Universities</CardTitle>
+            <CardDescription>
+              Universities that have been approved and can issue diplomas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!allUniversities ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-gray-600 mt-2">Loading universities...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {allUniversities.map((universityAddress) => (
+                  <ApprovedUniversityItem key={universityAddress} address={universityAddress} />
+                ))}
               </div>
             )}
           </CardContent>
@@ -244,13 +335,13 @@ export default function AdminPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 Update Gas Relay Settings
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 Manage Fee Structure
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 Platform Maintenance
               </Button>
             </CardContent>
@@ -264,13 +355,13 @@ export default function AdminPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 University Activity Report
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 Diploma Issuance Trends
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 Verification Statistics
               </Button>
             </CardContent>

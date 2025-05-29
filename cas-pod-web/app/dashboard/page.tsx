@@ -160,25 +160,25 @@ export default function DashboardPage() {
           <div className="grid md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
-                <div className="text-2xl font-bold text-blue-600">1,234</div>
+                <div className="text-2xl font-bold text-blue-600">-</div>
                 <p className="text-sm text-gray-600">Total Diplomas Issued</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6">
-                <div className="text-2xl font-bold text-green-600">567</div>
+                <div className="text-2xl font-bold text-green-600">-</div>
                 <p className="text-sm text-gray-600">Verified Universities</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6">
-                <div className="text-2xl font-bold text-purple-600">890</div>
+                <div className="text-2xl font-bold text-purple-600">-</div>
                 <p className="text-sm text-gray-600">NFTs Minted</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6">
-                <div className="text-2xl font-bold text-orange-600">2,345</div>
+                <div className="text-2xl font-bold text-orange-600">-</div>
                 <p className="text-sm text-gray-600">Verifications</p>
               </CardContent>
             </Card>
