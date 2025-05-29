@@ -1,0 +1,163 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Rules for implementing Privy in mobile applications within the pod-web project
+globs: 
+alwaysApply: false
+---
+
+# Privy Mobile Development Rules
+
+## Context
+
+- Use when implementing Privy in React Native mobile applications
+- Privy provides React Native SDK for mobile app development
+- These rules ensure proper implementation of Privy in mobile environments
+
+## Critical Rules
+
+- Always use the `@privy-io/react-native-auth` package for mobile apps, not the web SDK
+- Initialize Privy with platform-specific configuration for mobile
+- Implement proper deep linking setup for wallet connections
+- Follow Privy's recommendations for mobile UI/UX
+- Handle mobile-specific authentication flows properly
+- Use appropriate mobile wallet connectors (WalletConnect v2)
+- Implement proper error handling for mobile device limitations
+- Follow the recommended login methods for mobile (Email, social, passkeys)
+- Consider platform-specific differences between iOS and Android implementation
+- Test authentication flows on both iOS and Android devices
+- Use Privy's mobile-specific UI components when available
+- Follow secure storage practices for mobile authentication state
+
+## Examples
+
+<example>
+// Valid Privy mobile setup
+import { PrivyProvider } from '@privy-io/react-native-auth';
+import { LinkingConfiguration } from '@react-navigation/native';
+
+// Setup deep linking
+const linking = {
+  prefixes: ['myapp://', 'https://myapp.com'],
+  config: {
+    screens: {
+      Home: 'home',
+      WalletConnect: 'wallet-connect',
+    },
+  },
+};
+
+const App = () => {
+  return (
+    <PrivyProvider
+      appId={PRIVY_APP_ID}
+      config={{
+        loginMethods: ['email', 'apple', 'google', 'passkey'],
+        appearance: {
+          theme: 'light',
+          accentColor: '#676FFF',
+        },
+        embeddedWallets: {
+          createOnLogin: 'users-without-wallets',
+        },
+        // Mobile-specific configuration
+        platform: {
+          name: 'react-native',
+          linking,
+        },
+      }}
+    >
+      <NavigationContainer linking={LinkingConfiguration}>
+        <RootStack />
+      </NavigationContainer>
+    </PrivyProvider>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid: Using web SDK in mobile app
+import { PrivyProvider } from '@privy-io/react-auth'; // Wrong: using web SDK!
+
+const App = () => {
+  return (
+    <PrivyProvider
+      appId={PRIVY_APP_ID}
+      config={{
+        loginMethods: ['email', 'wallet'],
+        // Missing mobile-specific configuration
+      }}
+    >
+      <NavigationContainer>
+        <RootStack />
+      </NavigationContainer>
+    </PrivyProvider>
+  );
+};
+</example>
+
+<example>
+// Valid mobile wallet connection
+import { usePrivy, useWallets } from '@privy-io/react-native-auth';
+import { Button, View, Text, ActivityIndicator } from 'react-native';
+
+const MobileWalletScreen = () => {
+  const { login, authenticated, ready } = usePrivy();
+  const { wallets, connectWallet } = useWallets();
+  
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#676FFF" />
+      </View>
+    );
+  }
+  
+  return (
+    <View style={{ padding: 20 }}>
+      {!authenticated ? (
+        <Button title="Login with Privy" onPress={login} />
+      ) : (
+        <>
+          <Text>Connected Wallets: {wallets.length}</Text>
+          <Button title="Connect Wallet" onPress={connectWallet} />
+          {wallets.map(wallet => (
+            <Text key={wallet.address}>
+              {wallet.address.substring(0, 6)}...{wallet.address.substring(38)}
+            </Text>
+          ))}
+        </>
+      )}
+    </View>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid mobile implementation
+import { useEffect } from 'react';
+import { Button, View, Text } from 'react-native';
+import WalletConnectProvider from '@walletconnect/react-native-dapp'; // Not using Privy
+
+const MobileWalletScreen = () => {
+  // Incorrect: Not using Privy's mobile SDK
+  const [address, setAddress] = useState(null);
+  
+  const connectWallet = async () => {
+    // Incorrect: Direct WalletConnect usage instead of through Privy
+    const connector = await WalletConnect.connect();
+    const address = connector.accounts[0];
+    setAddress(address);
+  };
+  
+  return (
+    <View style={{ padding: 20 }}>
+      <Button title="Connect Wallet" onPress={connectWallet} />
+      {address && <Text>Connected: {address}</Text>}
+    </View>
+  );
+};
+</example>

@@ -1,0 +1,172 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Rules for implementing Privy's user management and security practices in the pod-web project
+globs: 
+alwaysApply: false
+---
+
+# Privy User Management and Security Rules
+
+## Context
+
+- Use when implementing user management with Privy
+- Privy provides secure authentication and user profiles
+- These rules ensure proper implementation of Privy's user management features
+
+## Critical Rules
+
+- Always access user data through the `user` object provided by the `usePrivy()` hook
+- Implement proper session management using Privy's authenticated state
+- Follow Privy's user linking recommendations when connecting multiple authentication methods
+- Use Privy's `linkWallet()` and `linkEmail()` methods for connecting authentication methods
+- Handle authentication errors properly and provide appropriate user feedback
+- Implement proper loading states during authentication processes
+- Use Privy's default UI components for authentication flows when possible
+- Follow Privy's security best practices for handling user data
+- Never store sensitive user information in client-side storage
+- Implement proper access controls based on authentication state
+- Use Privy's built-in methods for user profile management
+- Respect user privacy and data protection standards
+
+## Examples
+
+<example>
+// Valid user management implementation
+import { usePrivy } from '@privy-io/react-auth';
+
+const UserProfile = () => {
+  const { user, authenticated, ready, linkEmail, linkWallet } = usePrivy();
+  
+  const handleLinkEmail = async () => {
+    try {
+      await linkEmail();
+      console.log('Email linked successfully');
+    } catch (error) {
+      console.error('Failed to link email:', error);
+    }
+  };
+  
+  if (!ready) return <div>Loading...</div>;
+  
+  if (!authenticated) {
+    return <div>Please login to view your profile</div>;
+  }
+  
+  return (
+    <div>
+      <h2>User Profile</h2>
+      {user.email && <p>Email: {user.email}</p>}
+      {user.wallet && <p>Wallet: {user.wallet.address}</p>}
+      
+      {!user.email && (
+        <button onClick={handleLinkEmail}>Add Email</button>
+      )}
+      {!user.wallet && (
+        <button onClick={linkWallet}>Connect Wallet</button>
+      )}
+    </div>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid user management implementation
+const UserProfile = () => {
+  // Incorrect: Not using Privy's authentication hooks
+  const [userData, setUserData] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  useEffect(() => {
+    // Incorrect: Manually checking local storage for auth state
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setUserData(JSON.parse(storedUser));
+      setIsLoggedIn(true);
+    }
+  }, []);
+  
+  const linkEmailManually = async () => {
+    // Incorrect: Custom email linking implementation
+    const email = prompt('Enter your email:');
+    if (email) {
+      const newUserData = { ...userData, email };
+      setUserData(newUserData);
+      localStorage.setItem('user', JSON.stringify(newUserData));
+    }
+  };
+  
+  return (
+    <div>
+      <h2>User Profile</h2>
+      {isLoggedIn ? (
+        <>
+          {userData.email && <p>Email: {userData.email}</p>}
+          {userData.wallet && <p>Wallet: {userData.wallet}</p>}
+          <button onClick={linkEmailManually}>Add Email Manually</button>
+        </>
+      ) : (
+        <div>Please login to view your profile</div>
+      )}
+    </div>
+  );
+};
+</example>
+
+<example>
+// Valid authenticated guard component
+import { usePrivy } from '@privy-io/react-auth';
+import { useRouter } from 'next/router';
+
+const ProtectedRoute = ({ children }) => {
+  const { authenticated, ready } = usePrivy();
+  const router = useRouter();
+  
+  useEffect(() => {
+    if (ready && !authenticated) {
+      router.push('/login');
+    }
+  }, [ready, authenticated, router]);
+  
+  if (!ready) return <div>Loading...</div>;
+  
+  if (!authenticated) return null;
+  
+  return children;
+};
+
+// Usage
+const ProtectedPage = () => {
+  return (
+    <ProtectedRoute>
+      <div>This content is only visible to authenticated users</div>
+    </ProtectedRoute>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid authentication guard
+const ProtectedRoute = ({ children }) => {
+  // Incorrect: Not using Privy's authentication hooks
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const router = useRouter();
+  
+  useEffect(() => {
+    // Incorrect: Custom auth check based on local storage
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      router.push('/login');
+    } else {
+      setIsLoggedIn(true);
+    }
+  }, [router]);
+  
+  if (!isLoggedIn) return null;
+  
+  return children;
+};
+</example>

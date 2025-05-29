@@ -1,0 +1,162 @@
+'use client'
+
+import { useAccount } from 'wagmi'
+import { Header } from '@/components/header'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
+
+export default function DashboardPage() {
+  const { address, isConnected } = useAccount()
+
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-16">
+          <div className="max-w-md mx-auto text-center">
+            <h1 className="text-2xl font-bold mb-4">Connect Your Wallet</h1>
+            <p className="text-gray-600 mb-8">
+              Please connect your wallet to access the dashboard.
+            </p>
+            <Button asChild>
+              <Link href="/">Go Back</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <p className="text-gray-600">
+            Welcome to your POD dashboard. Choose your role to get started.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Student Dashboard */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                🎓 Student
+              </CardTitle>
+              <CardDescription>
+                View and manage your digital diplomas
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  • View your issued diplomas
+                </p>
+                <p className="text-sm text-gray-600">
+                  • Mint diploma NFTs
+                </p>
+                <p className="text-sm text-gray-600">
+                  • Share verification links
+                </p>
+              </div>
+              <Button className="w-full" asChild>
+                <Link href="/dashboard/student">Student Portal</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* University Dashboard */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                🏛️ University
+              </CardTitle>
+              <CardDescription>
+                Issue and manage student credentials
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  • Register your institution
+                </p>
+                <p className="text-sm text-gray-600">
+                  • Issue digital diplomas
+                </p>
+                <p className="text-sm text-gray-600">
+                  • Batch operations
+                </p>
+              </div>
+              <Button className="w-full" asChild>
+                <Link href="/dashboard/university">University Portal</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Verifier Dashboard */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                🔍 Verifier
+              </CardTitle>
+              <CardDescription>
+                Verify credentials and check authenticity
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  • Verify diploma authenticity
+                </p>
+                <p className="text-sm text-gray-600">
+                  • Check issuing institution
+                </p>
+                <p className="text-sm text-gray-600">
+                  • View credential details
+                </p>
+              </div>
+              <Button className="w-full" asChild>
+                <Link href="/verify">Verify Credentials</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Quick Stats</h2>
+          <div className="grid md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-2xl font-bold text-blue-600">1,234</div>
+                <p className="text-sm text-gray-600">Total Diplomas Issued</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-2xl font-bold text-green-600">567</div>
+                <p className="text-sm text-gray-600">Verified Universities</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-2xl font-bold text-purple-600">890</div>
+                <p className="text-sm text-gray-600">NFTs Minted</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="text-2xl font-bold text-orange-600">2,345</div>
+                <p className="text-sm text-gray-600">Verifications</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+} 

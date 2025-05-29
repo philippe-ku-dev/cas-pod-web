@@ -1,0 +1,215 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Git Version Control Specification
+
+## Context
+
+- Apply when working with pod-chain codebase to maintain clean commit history
+- Ensures code advancement and features are clearly separated
+- Facilitates code review, debugging, and feature tracking
+- Enables smooth collaboration and project management
+
+## Critical Rules
+
+- Use semantic versioning for releases (MAJOR.MINOR.PATCH)
+  - Increment MAJOR for backward incompatible changes
+  - Increment MINOR for backwards compatible feature additions
+  - Increment PATCH for backwards compatible bug fixes
+- Follow conventional commit format for all commits:
+  - Format: `<type>([optional scope]): <description>`
+  - Types: feat, fix, docs, style, refactor, test, chore, perf
+  - Example: `feat(diploma): implement verification flow`
+- Create a branch for each new feature or fix:
+  - Format: `<type>/<description>`
+  - Example: `feature/diploma-verification`
+- Separate commits by logical units of work:
+  - Each commit should implement one cohesive change
+  - Avoid mixing unrelated changes in a single commit
+- Write descriptive commit messages:
+  - First line: concise summary (50 chars or less)
+  - Body: detailed explanation (if needed)
+  - Footer: reference issues, breaking changes, etc.
+- Rebase feature branches from main regularly to avoid conflicts
+- Squash fixup commits before merging to main branch
+- Tag releases with version numbers following semantic versioning
+- Document all breaking changes in commit messages
+- Maintain a CHANGELOG.md file tracking significant changes
+- Create pull requests for code review before merging to main
+- Create separate commits for:
+  - Contract implementations
+  - Tests
+  - Documentation updates
+  - UI/Frontend changes
+- Ensure each contract change includes corresponding test updates
+- Never commit hardcoded secrets or credentials
+- Avoid committing large binary files or generated content
+- Use a .gitignore file to exclude build artifacts, dependencies, and local configs
+- Merge only after all tests pass and code review is complete
+- Include task/issue/ticket IDs in commit messages when applicable
+
+## Examples
+
+<example>
+```bash
+# Good commit message examples
+
+# Feature implementation
+git commit -m "feat(diploma): implement IPFS metadata storage
+
+- Added DiplomaMetadataRegistry contract
+- Implemented Pinata integration for IPFS pinning
+- Created metadata schema following ERC-721 standards
+
+Closes #123"
+
+# Bug fix
+git commit -m "fix(access): resolve role permission issue in AccessControl
+
+Fixed the issue where university admin couldn't assign roles to other users.
+This corrects the permission hierarchy to properly delegate authority.
+
+Fixes #456"
+
+# Documentation
+git commit -m "docs: update README with Pinata integration details
+
+Added setup instructions and configuration examples for Pinata IPFS integration"
+
+# Refactoring
+git commit -m "refactor(verification): optimize diploma verification process
+
+Reduced gas costs by 15% through storage optimization"
+
+# Breaking change
+git commit -m "feat(api)!: change diploma verification endpoint signature
+
+BREAKING CHANGE: The verification endpoint now requires a signed message
+parameter. This improves security by ensuring the requester has ownership
+of the requesting address.
+
+Migration guide added in docs/MIGRATION.md"
+
+# Chore
+git commit -m "chore: update dependencies to latest versions"
+```
+</example>
+
+<example>
+```bash
+# Workflow example for implementing a new feature
+
+# 1. Create a new branch
+git checkout -b feature/diploma-verification
+
+# 2. Make small, logical commits during development
+git commit -m "feat(verification): add basic diploma contract structure"
+git commit -m "feat(verification): implement signature verification"
+git commit -m "test(verification): add tests for signature verification"
+git commit -m "feat(verification): add IPFS metadata support"
+git commit -m "test(verification): add tests for IPFS metadata"
+git commit -m "docs: add documentation for verification process"
+
+# 3. Rebase on main to resolve any conflicts
+git checkout main
+git pull
+git checkout feature/diploma-verification
+git rebase main
+
+# 4. Fix any conflicts during rebase
+# 5. Run tests to verify everything works
+npm test
+
+# 6. Create a pull request (GitHub/GitLab/etc.)
+# 7. Address code review feedback with additional commits
+git commit -m "refactor(verification): simplify verification logic as suggested"
+
+# 8. After approval, merge to main
+git checkout main
+git merge --no-ff feature/diploma-verification
+
+# 9. Tag a release when reaching a milestone
+git tag -a v1.2.0 -m "Version 1.2.0 - Diploma verification feature"
+git push origin v1.2.0
+
+# 10. Update CHANGELOG.md with the new version details
+```
+</example>
+
+<example>
+```markdown
+# Example CHANGELOG.md format
+
+# Changelog
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](mdc:https:/keepachangelog.com/en/1.0.0),
+and this project adheres to [Semantic Versioning](mdc:https:/semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+### Added
+- New endpoint for batch diploma verification
+
+## [1.2.0] - 2023-07-15
+### Added
+- Diploma verification feature with cryptographic proof
+- IPFS metadata storage using Pinata
+- Verification URI generation for public credential sharing
+
+### Changed
+- Improved access control system with role-based permissions
+- Optimized gas usage for verification operations
+
+### Fixed
+- Issue with role assignment for university administrators
+
+## [1.1.0] - 2023-06-01
+### Added
+- Basic diploma issuance functionality
+- University registration system
+- Student identity verification
+
+### Security
+- Added signature verification for all administrative actions
+```
+</example>
+
+<example type="invalid">
+```bash
+# Poor commit practices to avoid
+
+# Vague, uninformative message
+git commit -m "update code"
+
+# Too many changes in one commit
+git commit -m "implement verification, fix bugs, update UI and add new features"
+
+# No context or reference
+git commit -m "fixed it"
+
+# Mixing unrelated changes
+git commit -m "fix login bug and add new diploma feature"
+
+# Breaking changes without clear indication
+git commit -m "update API endpoints"  # (When it actually breaks existing integrations)
+
+# Commit with temporary code
+git commit -m "WIP: trying to fix the thing"
+
+# Commit directly to main without review
+git checkout main
+git commit -m "quick fix for production"
+
+# Commit with hardcoded secrets
+git commit -m "add API integration with key"  # (When the commit contains actual API keys)
+
+# Committed generated/build files
+git add dist/* node_modules/*
+git commit -m "update build"
+
+# No issue references when addressing known issues
+git commit -m "fix that bug we discussed yesterday"
+```
+</example>

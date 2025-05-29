@@ -1,0 +1,93 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Guidelines for implementing themes and styling with Shadcn UI
+globs: 
+alwaysApply: false
+---
+
+# Shadcn UI Theming
+
+## Context
+
+- Apply when implementing or modifying themes in Shadcn UI
+- Used when configuring dark mode or custom themes
+- Ensures consistent styling across components
+
+## Critical Rules
+
+- Use CSS variables for theming following Shadcn UI conventions
+- Configure dark mode using the recommended approach (next-themes or similar)
+- Maintain a consistent base color throughout the application
+- Update global.css with the proper CSS variable structure
+- Use semantic color naming (primary, secondary, accent, etc.)
+- Implement proper color contrast for accessibility
+- Configure Tailwind properly to work with Shadcn UI themes
+
+## Examples
+
+<example>
+// Proper global.css CSS variables setup
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  --radius: 0.5rem;
+}
+
+// Proper dark mode configuration
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  /* Additional dark mode colors */
+}
+
+// Next-themes implementation
+import { ThemeProvider } from 'next-themes'
+
+export function Providers({ children }) {
+  return (
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      {children}
+    </ThemeProvider>
+  )
+}
+</example>
+
+<example type="invalid">
+// Incorrect - Using inline colors instead of CSS variables
+<Button className="bg-blue-500 text-white">Click me</Button>
+
+// Incorrect - Not implementing dark mode correctly
+:root {
+  --background: white;
+  --foreground: black;
+}
+
+// Incorrect - Using non-standard color names
+:root {
+  --my-blue: 210 40% 98%;
+  --text-color: 222.2 84% 4.9%;
+}
+</example>

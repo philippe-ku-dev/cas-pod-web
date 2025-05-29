@@ -1,0 +1,116 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Rules for integrating Privy authentication and wallet infrastructure into the pod-web project
+globs: 
+alwaysApply: false
+---
+
+# Privy Integration Rules
+
+## Context
+
+- Use when implementing Privy for authentication, wallet management, and user onboarding
+- Privy provides embedded wallet infrastructure for web3 applications
+- These rules ensure consistent implementation of Privy across the project
+
+## Critical Rules
+
+- Always wrap the application with `PrivyProvider` at the root level with appropriate configuration
+- Only create embedded wallets using Privy's official methods, never implement custom wallet creation
+- Implement proper authentication flow using `usePrivy()` hook for user login/logout
+- Support multiple wallet connections using Privy connectors (injected wallets, WalletConnect)
+- Use proper error handling for wallet actions and authentication methods
+- Always set appropriate chain configuration when interacting with wallets
+- Follow Privy's security best practices for wallet and key management
+- When funding wallets, use Privy's official payment integrations (Apple Pay/Google Pay)
+- For mobile applications, always use React Native SDK specific methods
+- Never expose private keys or sensitive wallet information in client-side code
+- Use Privy's user management system for handling user identity and data
+- Follow Privy's recommended approaches for wallet recovery
+
+## Examples
+
+<example>
+// Valid Privy provider configuration
+import { PrivyProvider } from '@privy-io/react-auth';
+
+const App = ({ Component, pageProps }) => {
+  return (
+    <PrivyProvider
+      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID}
+      config={{
+        loginMethods: ['email', 'wallet'],
+        appearance: {
+          theme: 'light',
+          accentColor: '#676FFF',
+        },
+        embeddedWallets: {
+          createOnLogin: 'users-without-wallets',
+        },
+      }}
+    >
+      <Component {...pageProps} />
+    </PrivyProvider>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid: Missing proper Privy provider configuration
+import { PrivyProvider } from '@privy-io/react-auth';
+
+const App = ({ Component, pageProps }) => {
+  // Missing required configuration
+  return (
+    <PrivyProvider>
+      <Component {...pageProps} />
+    </PrivyProvider>
+  );
+};
+</example>
+
+<example>
+// Valid wallet connection implementation
+import { usePrivy } from '@privy-io/react-auth';
+
+const WalletConnection = () => {
+  const { login, logout, authenticated, user, connectWallet } = usePrivy();
+  
+  return (
+    <div>
+      {authenticated ? (
+        <>
+          <p>Connected as: {user.email || user.wallet.address}</p>
+          <button onClick={logout}>Logout</button>
+          <button onClick={connectWallet}>Connect another wallet</button>
+        </>
+      ) : (
+        <button onClick={login}>Login with Privy</button>
+      )}
+    </div>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid: Direct manipulation of wallet connection without Privy
+const WalletConnection = () => {
+  // Incorrect: Not using Privy's authentication hooks
+  const [walletAddress, setWalletAddress] = useState(null);
+  
+  const connectWallet = async () => {
+    // Manual ethereum provider access instead of using Privy
+    const provider = window.ethereum;
+    const accounts = await provider.request({ method: 'eth_requestAccounts' });
+    setWalletAddress(accounts[0]);
+  };
+  
+  return (
+    <button onClick={connectWallet}>Connect Wallet</button>
+  );
+};
+</example>

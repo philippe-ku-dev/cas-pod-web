@@ -1,0 +1,111 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # Gelato 1Balance Implementation
+
+## Context
+
+- Apply when implementing or discussing Gelato 1Balance service
+- 1Balance is Gelato's payment system to fund sponsored transactions across multiple chains
+- Used to pay for Relay, Web3 Functions, Account Abstraction, and other Gelato services
+
+## Critical Rules
+
+- Fund 1Balance with USDC on Ethereum or Polygon for multi-chain sponsorship
+- Monitor 1Balance credit levels to ensure service continuity
+- Implement subscription plan alert mechanisms to avoid service interruptions
+- Use appropriate subscription tier based on expected transaction volume
+- Securely store and manage 1Balance API keys
+- Test sponsored transactions on test networks before production deployment
+- Consider setting up subscription notifications for low balance alerts
+- Verify USDC token addresses match the official Gelato-supported addresses
+- Handle potential transaction failures due to insufficient 1Balance credit
+
+## Examples
+
+<example>
+// Proper 1Balance implementation with Relay
+import { GelatoRelay } from "@gelatonetwork/relay-sdk";
+
+// 1. Initialize relay with 1Balance API key
+const relay = new GelatoRelay();
+const API_KEY = process.env.GELATO_1BALANCE_API_KEY; // Securely stored API key
+
+// 2. Implement sponsored transaction
+async function sponsorUserTransaction(userAddress, targetContract, encodedData) {
+  try {
+    const { taskId } = await relay.sponsoredCall(
+      {
+        chainId,
+        target: targetContract,
+        data: encodedData,
+        user: userAddress,
+      },
+      API_KEY // 1Balance API key for sponsorship
+    );
+    
+    console.log(`Sponsored transaction submitted with task ID: ${taskId}`);
+    return taskId;
+  } catch (error) {
+    // Handle errors including insufficient balance
+    if (error.message.includes("Insufficient balance")) {
+      // Implement balance alert logic
+      await sendBalanceAlert();
+    }
+    throw error;
+  }
+}
+
+// 3. Implement balance checking
+async function check1BalanceCredit() {
+  const response = await fetch(
+    `https://api.gelato.network/orgs/my-org-name/credits`,
+    {
+      headers: {
+        'X-API-KEY': API_KEY
+      }
+    }
+  );
+  
+  const data = await response.json();
+  // Monitor and alert if balance is below threshold
+  if (data.credits < MINIMUM_THRESHOLD) {
+    await sendLowBalanceAlert();
+  }
+  
+  return data.credits;
+}
+</example>
+
+<example type="invalid">
+// Incorrect 1Balance usage
+// 1. Hardcoded API key
+const API_KEY = "abc123xyz456"; // BAD: API key should not be hardcoded
+
+// 2. No error handling for insufficient balance
+async function sponsorTransaction(user, target, data) {
+  const { taskId } = await relay.sponsoredCall(
+    {
+      chainId,
+      target,
+      data,
+      user,
+    },
+    API_KEY
+  );
+  
+  return taskId;
+  // No error handling for insufficient balance
+  // No monitoring of balance levels
+}
+
+// 3. Using incorrect USDC address
+async function fundBalance() {
+  await sendUSDC(
+    "0x1234567890abcdef", // WRONG: Not using official Gelato USDC address
+    amountToFund
+  );
+}
+</example>

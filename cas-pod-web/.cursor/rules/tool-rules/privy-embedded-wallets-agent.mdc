@@ -1,0 +1,170 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Rules for implementing Privy's embedded wallet functionality in the pod-web project
+globs: 
+alwaysApply: false
+---
+
+# Privy Embedded Wallets Rules
+
+## Context
+
+- Use when implementing Privy's embedded wallet functionality
+- Embedded wallets allow users to interact with blockchain without managing keys
+- These rules ensure proper implementation of Privy's wallet features
+
+## Critical Rules
+
+- Always use `useWallets()` hook to access user's wallets and perform wallet operations
+- Create embedded wallets only through the `createWallet()` method from Privy
+- Follow the recommended pattern for sending transactions using embedded wallets
+- Always handle wallet creation errors and provide user feedback
+- When implementing wallet funding, use the official Privy payment methods
+- For cross-chain functionality, ensure proper chain configuration is set before transactions
+- Use proper error handling for all wallet operations (transactions, signing, etc.)
+- Implement proper UI feedback for transaction states (pending, confirmed, failed)
+- Follow the recommended pattern for signing messages with embedded wallets
+- Respect user's wallet preferences and selections when multiple wallets are available
+- Never store sensitive wallet information in localStorage or other client-accessible storage
+- Use Privy's built-in methods for exporting wallets rather than custom implementations
+
+## Examples
+
+<example>
+// Valid embedded wallet creation and usage
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+
+const WalletComponent = () => {
+  const { authenticated, user, ready } = usePrivy();
+  const { wallets, createWallet } = useWallets();
+  
+  const handleCreateWallet = async () => {
+    try {
+      await createWallet();
+      console.log('Wallet created successfully');
+    } catch (error) {
+      console.error('Failed to create wallet:', error);
+    }
+  };
+  
+  // Using existing wallets for transaction
+  const sendTransaction = async () => {
+    const embeddedWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
+    if (!embeddedWallet) return;
+    
+    try {
+      const txHash = await embeddedWallet.sendTransaction({
+        to: '0x123...',
+        value: '0.01', // in ETH
+      });
+      console.log('Transaction sent:', txHash);
+    } catch (error) {
+      console.error('Transaction failed:', error);
+    }
+  };
+  
+  return (
+    <div>
+      {authenticated && !wallets.some(w => w.walletClientType === 'privy') && (
+        <button onClick={handleCreateWallet}>Create Embedded Wallet</button>
+      )}
+      {wallets.length > 0 && (
+        <button onClick={sendTransaction}>Send Transaction</button>
+      )}
+    </div>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid wallet implementation
+const WalletComponent = () => {
+  // Incorrect: Not using Privy's wallet hooks
+  const createCustomWallet = async () => {
+    // Incorrect: Creating custom wallet implementation
+    const newWallet = ethers.Wallet.createRandom();
+    localStorage.setItem('privateKey', newWallet.privateKey); // Security risk!
+    return newWallet;
+  };
+  
+  // Incorrect: Not using Privy's transaction methods
+  const sendCustomTransaction = async () => {
+    const privateKey = localStorage.getItem('privateKey');
+    const wallet = new ethers.Wallet(privateKey);
+    const tx = await wallet.sendTransaction({
+      to: '0x123...',
+      value: ethers.utils.parseEther('0.01')
+    });
+    return tx;
+  };
+  
+  return (
+    <div>
+      <button onClick={createCustomWallet}>Create Custom Wallet</button>
+      <button onClick={sendCustomTransaction}>Send Custom Transaction</button>
+    </div>
+  );
+};
+</example>
+
+<example>
+// Valid wallet funding implementation
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+
+const FundWalletComponent = () => {
+  const { wallets } = useWallets();
+  const embeddedWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
+  
+  const fundWalletWithFiat = async () => {
+    if (!embeddedWallet) return;
+    
+    try {
+      // Using Privy's funding method
+      const result = await embeddedWallet.fundWithFiat({
+        fiatCurrency: 'USD',
+        chainId: '0x1', // Ethereum mainnet
+        amount: 50, // $50 USD
+        fiatOnramp: 'stripe',
+      });
+      console.log('Funding initiated:', result);
+    } catch (error) {
+      console.error('Funding failed:', error);
+    }
+  };
+  
+  return (
+    <button onClick={fundWalletWithFiat}>
+      Fund Wallet with Credit Card
+    </button>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid: Custom wallet funding implementation
+const FundWalletComponent = () => {
+  // Incorrect: Not using Privy's funding methods
+  const customFundingMethod = async () => {
+    // Incorrect: Implementing custom payment solution 
+    // instead of using Privy's integrated funding methods
+    const response = await fetch('/api/custom-payment', {
+      method: 'POST',
+      body: JSON.stringify({
+        amount: 50,
+        walletAddress: '0x123...'
+      })
+    });
+    return response.json();
+  };
+  
+  return (
+    <button onClick={customFundingMethod}>
+      Custom Funding Method
+    </button>
+  );
+};
+</example>

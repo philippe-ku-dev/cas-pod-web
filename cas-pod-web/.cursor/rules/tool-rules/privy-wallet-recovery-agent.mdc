@@ -1,0 +1,226 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Rules for implementing Privy's wallet recovery and backup functionality in the pod-web project
+globs: 
+alwaysApply: false
+---
+
+# Privy Wallet Recovery and Backup Rules
+
+## Context
+
+- Use when implementing wallet recovery and backup functionality with Privy
+- Privy provides several methods for wallet recovery on new devices
+- These rules ensure proper implementation of secure wallet recovery flows
+
+## Critical Rules
+
+- Always implement multi-factor authentication (MFA) for wallet security when available
+- Use Privy's `useRecoverEmbeddedWallet` hook for wallet recovery implementation
+- Offer multiple recovery methods to users (password-based, cloud backup options)
+- For self-custodial setups, always enable additional authentication factors for new devices
+- Handle recovery errors properly and provide clear user feedback
+- Prompt users to enroll authentication factors immediately after wallet creation
+- Clearly communicate to users the consequences of losing recovery factors
+- Follow device-specific recovery flows (different for web, mobile, etc.)
+- Implement proper state management during recovery flows
+- Never store recovery passwords or factors in client-accessible storage
+- For automatic recovery (`recoveryMethod: 'privy'`), implement proper authentication checks
+- Provide recovery method enrollment UI with clear instructions
+- Link multiple authentication methods to user accounts when possible
+- Configure recovery authentication factors in the Privy Dashboard's Authentication/MFA section
+
+## Examples
+
+<example>
+// Valid wallet recovery implementation
+import { usePrivy, useRecoverEmbeddedWallet, needsRecovery, useWallets } from '@privy-io/react-auth';
+
+const WalletRecovery = () => {
+  const [password, setPassword] = useState('');
+  const { user, authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const { recover } = useRecoverEmbeddedWallet();
+  
+  const embeddedWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
+  
+  if (!authenticated || !embeddedWallet) return null;
+  
+  if (needsRecovery(embeddedWallet)) {
+    return (
+      <div>
+        <h2>Recover Your Wallet</h2>
+        <p>Please enter your recovery password to access your wallet on this device.</p>
+        <input 
+          type="password" 
+          value={password} 
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Enter recovery password" 
+        />
+        <button
+          onClick={async () => {
+            try {
+              await recover({
+                recoveryMethod: 'user-passcode',
+                password,
+              });
+              console.log('Wallet recovered successfully');
+            } catch (error) {
+              console.error('Wallet recovery failed:', error);
+              // Show error to user
+            }
+          }}
+        >
+          Recover Wallet
+        </button>
+      </div>
+    );
+  }
+  
+  return null;
+};
+</example>
+
+<example type="invalid">
+// Invalid wallet recovery implementation
+const WalletRecovery = () => {
+  // Incorrect: Not using Privy's recovery hooks
+  const [password, setPassword] = useState('');
+  const [walletData, setWalletData] = useState(null);
+  
+  const recoverWallet = async () => {
+    try {
+      // Incorrect: Custom recovery implementation instead of using Privy
+      const encryptedData = localStorage.getItem('walletBackup');
+      if (!encryptedData) {
+        console.error('No wallet backup found');
+        return;
+      }
+      
+      // Insecure custom decryption
+      const wallet = decryptWallet(encryptedData, password);
+      setWalletData(wallet);
+      localStorage.setItem('recoveredWallet', JSON.stringify(wallet));
+    } catch (error) {
+      console.error('Recovery failed', error);
+    }
+  };
+  
+  return (
+    <div>
+      <input 
+        type="password" 
+        value={password} 
+        onChange={(e) => setPassword(e.target.value)} 
+      />
+      <button onClick={recoverWallet}>Recover Wallet</button>
+    </div>
+  );
+};
+</example>
+
+<example>
+// Valid recovery factor enrollment
+import { usePrivy, useWallets, useSetupRecoveryMethod } from '@privy-io/react-auth';
+
+const SetupRecovery = () => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const { authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const { setup, canSetupRecoveryMethod } = useSetupRecoveryMethod();
+  
+  const embeddedWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
+  
+  if (!authenticated || !embeddedWallet || !canSetupRecoveryMethod) return null;
+  
+  const handleSetupRecovery = async () => {
+    if (password !== confirmPassword) {
+      alert('Passwords do not match');
+      return;
+    }
+    
+    try {
+      await setup({
+        recoveryMethod: 'user-passcode',
+        password,
+      });
+      alert('Recovery method set successfully. Keep your password safe!');
+    } catch (error) {
+      console.error('Failed to set recovery method:', error);
+      alert('Failed to set recovery method. Please try again.');
+    }
+  };
+  
+  return (
+    <div>
+      <h2>Secure Your Wallet</h2>
+      <p>Set up a recovery password to access your wallet on new devices.</p>
+      <div>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Create recovery password"
+        />
+      </div>
+      <div>
+        <input
+          type="password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          placeholder="Confirm recovery password"
+        />
+      </div>
+      <button onClick={handleSetupRecovery}>
+        Set Up Recovery
+      </button>
+    </div>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid recovery setup implementation
+const SetupRecovery = () => {
+  // Incorrect: Not using Privy's recovery setup hooks
+  const [backupPassword, setBackupPassword] = useState('');
+  const [wallet, setWallet] = useState(null);
+  
+  useEffect(() => {
+    // Incorrect: Getting wallet data from localStorage
+    const storedWallet = localStorage.getItem('wallet');
+    if (storedWallet) {
+      setWallet(JSON.parse(storedWallet));
+    }
+  }, []);
+  
+  const createBackup = () => {
+    if (!wallet || !backupPassword) return;
+    
+    // Incorrect: Custom backup implementation instead of using Privy
+    const encryptedData = encryptWallet(wallet, backupPassword);
+    localStorage.setItem('walletBackup', encryptedData);
+    
+    alert('Backup created. Please remember your password!');
+  };
+  
+  return (
+    <div>
+      <input
+        type="password"
+        value={backupPassword}
+        onChange={(e) => setBackupPassword(e.target.value)}
+        placeholder="Create backup password"
+      />
+      <button onClick={createBackup}>
+        Create Backup
+      </button>
+    </div>
+  );
+};
+</example>

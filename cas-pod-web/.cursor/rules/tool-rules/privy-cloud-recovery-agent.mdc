@@ -1,0 +1,253 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Rules for implementing Privy's cloud-based recovery methods in the pod-web project
+globs: 
+alwaysApply: false
+---
+
+# Privy Cloud-Based Recovery Rules
+
+## Context
+
+- Use when implementing cloud-based recovery methods with Privy
+- Privy supports Google Drive and iCloud for wallet backup and recovery
+- These rules ensure proper implementation of secure cloud recovery flows
+
+## Critical Rules
+
+- Offer cloud backup options (Google Drive, iCloud) alongside password-based recovery
+- Use the appropriate cloud recovery method based on user's device ecosystem
+- Follow platform-specific implementation requirements for cloud backups
+- Always get proper user consent before initiating cloud backups
+- Properly handle cloud authorization flows and errors
+- Clearly communicate the privacy and security implications of cloud backups
+- Implement proper error handling for cloud service connection failures
+- Offer clear instructions on how to recover wallets using cloud backups
+- Configure cloud recovery options in Privy Dashboard under Authentication/MFA
+- For mobile applications, use the appropriate platform-specific cloud backup methods
+- Present recovery options in order of security and ease of use
+- Inform users about potential security risks of using each recovery method
+- Support fallback mechanisms if cloud recovery fails
+
+## Examples
+
+<example>
+// Valid cloud recovery implementation
+import { usePrivy, useWallets, useRecoverEmbeddedWallet, needsRecovery } from '@privy-io/react-auth';
+
+const CloudRecovery = () => {
+  const { authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const { recover } = useRecoverEmbeddedWallet();
+  
+  const embeddedWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
+  
+  if (!authenticated || !embeddedWallet) return null;
+  
+  if (needsRecovery(embeddedWallet)) {
+    return (
+      <div>
+        <h2>Recover Your Wallet</h2>
+        <p>Choose a recovery method to access your wallet on this device.</p>
+        
+        <button
+          onClick={async () => {
+            try {
+              await recover({
+                recoveryMethod: 'google-drive',
+              });
+              console.log('Wallet recovered from Google Drive successfully');
+            } catch (error) {
+              console.error('Google Drive recovery failed:', error);
+              // Show error to user
+            }
+          }}
+        >
+          Recover with Google Drive
+        </button>
+        
+        <button
+          onClick={async () => {
+            try {
+              await recover({
+                recoveryMethod: 'icloud',
+              });
+              console.log('Wallet recovered from iCloud successfully');
+            } catch (error) {
+              console.error('iCloud recovery failed:', error);
+              // Show error to user
+            }
+          }}
+        >
+          Recover with iCloud
+        </button>
+      </div>
+    );
+  }
+  
+  return null;
+};
+</example>
+
+<example type="invalid">
+// Invalid cloud recovery implementation
+const CloudRecovery = () => {
+  // Incorrect: Not using Privy's recovery hooks
+  const [wallet, setWallet] = useState(null);
+  
+  const recoverFromGoogleDrive = async () => {
+    try {
+      // Incorrect: Custom Google Drive API implementation instead of using Privy
+      const authResult = await window.gapi.auth2.getAuthInstance().signIn();
+      const token = authResult.getAuthResponse().access_token;
+      
+      // Access Google Drive API directly
+      const response = await fetch('https://www.googleapis.com/drive/v3/files?q=name="wallet-backup.json"', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const files = await response.json();
+      if (files.items.length === 0) {
+        console.error('No backup found on Google Drive');
+        return;
+      }
+      
+      // Download and process backup file
+      const fileId = files.items[0].id;
+      const fileContent = await downloadFile(fileId, token);
+      setWallet(JSON.parse(fileContent));
+      localStorage.setItem('wallet', fileContent);
+    } catch (error) {
+      console.error('Failed to recover from Google Drive', error);
+    }
+  };
+  
+  return (
+    <div>
+      <button onClick={recoverFromGoogleDrive}>
+        Recover from Google Drive
+      </button>
+    </div>
+  );
+};
+</example>
+
+<example>
+// Valid cloud backup setup
+import { usePrivy, useWallets, useSetupRecoveryMethod } from '@privy-io/react-auth';
+
+const SetupCloudBackup = () => {
+  const { authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const { setup, canSetupRecoveryMethod, getAvailableRecoveryMethods } = useSetupRecoveryMethod();
+  
+  const embeddedWallet = wallets.find(wallet => wallet.walletClientType === 'privy');
+  const availableMethods = getAvailableRecoveryMethods();
+  const canUseGoogleDrive = availableMethods.includes('google-drive');
+  const canUseICloud = availableMethods.includes('icloud');
+  
+  if (!authenticated || !embeddedWallet || !canSetupRecoveryMethod) return null;
+  
+  return (
+    <div>
+      <h2>Secure Your Wallet</h2>
+      <p>Set up a cloud backup to access your wallet on new devices.</p>
+      
+      {canUseGoogleDrive && (
+        <button
+          onClick={async () => {
+            try {
+              await setup({
+                recoveryMethod: 'google-drive',
+              });
+              alert('Google Drive backup setup successful!');
+            } catch (error) {
+              console.error('Failed to setup Google Drive backup:', error);
+              alert('Failed to setup Google Drive backup. Please try again.');
+            }
+          }}
+        >
+          Backup to Google Drive
+        </button>
+      )}
+      
+      {canUseICloud && (
+        <button
+          onClick={async () => {
+            try {
+              await setup({
+                recoveryMethod: 'icloud',
+              });
+              alert('iCloud backup setup successful!');
+            } catch (error) {
+              console.error('Failed to setup iCloud backup:', error);
+              alert('Failed to setup iCloud backup. Please try again.');
+            }
+          }}
+        >
+          Backup to iCloud
+        </button>
+      )}
+    </div>
+  );
+};
+</example>
+
+<example type="invalid">
+// Invalid cloud backup setup
+const SetupCloudBackup = () => {
+  // Incorrect: Not using Privy's recovery setup hooks
+  const [wallet, setWallet] = useState(null);
+  
+  useEffect(() => {
+    // Incorrect: Getting wallet data from localStorage
+    const storedWallet = localStorage.getItem('wallet');
+    if (storedWallet) {
+      setWallet(JSON.parse(storedWallet));
+    }
+  }, []);
+  
+  const backupToGoogleDrive = async () => {
+    if (!wallet) return;
+    
+    try {
+      // Incorrect: Custom Google Drive API implementation instead of using Privy
+      const authResult = await window.gapi.auth2.getAuthInstance().signIn();
+      const token = authResult.getAuthResponse().access_token;
+      
+      // Create and upload backup file directly
+      const file = new Blob([JSON.stringify(wallet)], { type: 'application/json' });
+      const metadata = {
+        name: 'wallet-backup.json',
+        mimeType: 'application/json',
+      };
+      
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', file);
+      
+      await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      
+      alert('Backup to Google Drive successful!');
+    } catch (error) {
+      console.error('Failed to backup to Google Drive', error);
+    }
+  };
+  
+  return (
+    <div>
+      <button onClick={backupToGoogleDrive}>
+        Backup to Google Drive
+      </button>
+    </div>
+  );
+};
+</example>

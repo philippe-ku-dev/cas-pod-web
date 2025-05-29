@@ -1,0 +1,461 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # TypeScript React Best Practices
+
+This rule file provides guidelines for using TypeScript with React based on official TypeScript and React documentation.
+
+## Rule: Proper Component Type Definitions
+
+Use appropriate types for React components.
+
+```tsx
+import { FC, ReactElement, ReactNode } from 'react';
+
+// Functional component with children
+interface LayoutProps {
+  children: ReactNode;
+  title: string;
+}
+
+const Layout: FC<LayoutProps> = ({ children, title }) => (
+  <div>
+    <h1>{title}</h1>
+    <main>{children}</main>
+  </div>
+);
+
+// Component that returns ReactElement
+function Button(props: { onClick: () => void; label: string }): ReactElement {
+  return <button onClick={props.onClick}>{props.label}</button>;
+}
+
+// Component with generic props
+function List<T>({ items, renderItem }: { 
+  items: T[]; 
+  renderItem: (item: T) => ReactNode 
+}): ReactElement {
+  return (
+    <ul>
+      {items.map((item, index) => (
+        <li key={index}>{renderItem(item)}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Rule: Event Handling with TypeScript
+
+Use proper typing for event handlers.
+
+```tsx
+import { ChangeEvent, FormEvent, MouseEvent } from 'react';
+
+function Form() {
+  // Typed input change event
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    console.log(e.target.value);
+  };
+
+  // Typed button click event
+  const handleButtonClick = (e: MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    console.log('Button clicked');
+  };
+
+  // Typed form submission
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    console.log('Form submitted');
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input type="text" onChange={handleInputChange} />
+      <button onClick={handleButtonClick}>Submit</button>
+    </form>
+  );
+}
+```
+
+## Rule: Type-Safe useRef Hook
+
+Use properly typed refs.
+
+```tsx
+import { useRef, useEffect, RefObject } from 'react';
+
+function VideoPlayer() {
+  // Typed ref with initial null value
+  const videoRef: RefObject<HTMLVideoElement> = useRef(null);
+
+  useEffect(() => {
+    // Safe access with optional chaining
+    videoRef.current?.play()
+      .catch(e => console.error('Error playing video:', e));
+  }, []);
+
+  return <video ref={videoRef} src="video.mp4" />;
+}
+```
+
+## Rule: Type-Safe useState Hook
+
+Use properly typed state with useState.
+
+```tsx
+import { useState } from 'react';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+function UserProfile() {
+  // Explicitly typed state
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Type inferred as boolean
+
+  // Type-safe state update
+  const updateUser = (name: string) => {
+    if (user) {
+      setUser({ ...user, name });
+    }
+  };
+
+  return (
+    <>
+      {isLoading ? (
+        <p>Loading...</p>
+      ) : user ? (
+        <div>
+          <h2>{user.name}</h2>
+          <p>{user.email}</p>
+          <button onClick={() => updateUser('New Name')}>Update Name</button>
+        </div>
+      ) : (
+        <p>No user found</p>
+      )}
+    </>
+  );
+}
+```
+
+## Rule: Type-Safe useReducer Hook
+
+Use discriminated unions for reducer actions.
+
+```tsx
+import { useReducer } from 'react';
+
+interface State {
+  count: number;
+  error?: string;
+}
+
+// Discriminated union for actions
+type Action =
+  | { type: 'INCREMENT' }
+  | { type: 'DECREMENT' }
+  | { type: 'RESET' }
+  | { type: 'SET_COUNT'; payload: number };
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'INCREMENT':
+      return { ...state, count: state.count + 1 };
+    case 'DECREMENT':
+      return { ...state, count: state.count - 1 };
+    case 'RESET':
+      return { count: 0 };
+    case 'SET_COUNT':
+      return { count: action.payload };
+    default:
+      // TypeScript will catch if we're not handling all action types
+      const exhaustiveCheck: never = action;
+      return state;
+  }
+}
+
+function Counter() {
+  const [state, dispatch] = useReducer(reducer, { count: 0 });
+
+  return (
+    <div>
+      <p>Count: {state.count}</p>
+      <button onClick={() => dispatch({ type: 'INCREMENT' })}>+</button>
+      <button onClick={() => dispatch({ type: 'DECREMENT' })}>-</button>
+      <button onClick={() => dispatch({ type: 'RESET' })}>Reset</button>
+      <button onClick={() => dispatch({ type: 'SET_COUNT', payload: 10 })}>Set to 10</button>
+    </div>
+  );
+}
+```
+
+## Rule: Type-Safe Context
+
+Define and use typed React contexts.
+
+```tsx
+import { createContext, useContext, FC, ReactNode, useState } from 'react';
+
+interface ThemeContextType {
+  isDarkMode: boolean;
+  toggleTheme: () => void;
+}
+
+// Create context with default value
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+// Provider component
+interface ThemeProviderProps {
+  children: ReactNode;
+}
+
+export const ThemeProvider: FC<ThemeProviderProps> = ({ children }) => {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+
+  return (
+    <ThemeContext.Provider value={{ isDarkMode, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+// Custom hook for using the context
+export function useTheme(): ThemeContextType {
+  const context = useContext(ThemeContext);
+  if (context === undefined) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
+  return context;
+}
+
+// Usage
+function ThemedButton() {
+  const { isDarkMode, toggleTheme } = useTheme();
+  
+  return (
+    <button
+      style={{
+        backgroundColor: isDarkMode ? '#333' : '#fff',
+        color: isDarkMode ? '#fff' : '#333',
+      }}
+      onClick={toggleTheme}
+    >
+      Toggle Theme
+    </button>
+  );
+}
+```
+
+## Rule: Type-Safe Custom Hooks
+
+Create properly typed custom hooks.
+
+```tsx
+import { useState, useEffect } from 'react';
+
+// Generic custom hook with typed parameters and return value
+function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => void] {
+  // State to store our value
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.error(error);
+      return initialValue;
+    }
+  });
+
+  // Return a wrapped version of useState's setter function
+  const setValue = (value: T) => {
+    try {
+      // Save state
+      setStoredValue(value);
+      // Save to local storage
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return [storedValue, setValue];
+}
+
+// Usage
+function UserSettings() {
+  const [settings, setSettings] = useLocalStorage<{
+    notifications: boolean;
+    theme: 'light' | 'dark';
+  }>('userSettings', {
+    notifications: true,
+    theme: 'light',
+  });
+
+  return (
+    <div>
+      <h2>User Settings</h2>
+      <label>
+        <input
+          type="checkbox"
+          checked={settings.notifications}
+          onChange={e => 
+            setSettings({...settings, notifications: e.target.checked})
+          }
+        />
+        Enable Notifications
+      </label>
+      <select
+        value={settings.theme}
+        onChange={e => 
+          setSettings({...settings, theme: e.target.value as 'light' | 'dark'})
+        }
+      >
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </div>
+  );
+}
+```
+
+## Rule: Prop Type Checking
+
+Use TypeScript interfaces instead of PropTypes.
+
+```tsx
+// ❌ Don't use React PropTypes with TypeScript
+import PropTypes from 'prop-types';
+
+// ✅ Use TypeScript interfaces instead
+interface ButtonProps {
+  variant: 'primary' | 'secondary' | 'danger';
+  size?: 'small' | 'medium' | 'large';
+  onClick: () => void;
+  children: React.ReactNode;
+}
+
+function Button({ variant, size = 'medium', onClick, children }: ButtonProps) {
+  return (
+    <button className={`btn-${variant} btn-${size}`} onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+
+// Usage with type checking
+<Button variant="primary" onClick={() => console.log('Clicked')}>
+  Click Me
+</Button>
+```
+
+## Rule: Type-Safe API Calls in Components
+
+Use TypeScript with async data fetching.
+
+```tsx
+import { useState, useEffect } from 'react';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface ApiError {
+  message: string;
+  code: string;
+}
+
+function UserList() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const response = await fetch('https://api.example.com/users');
+        
+        if (!response.ok) {
+          const errorData: ApiError = await response.json();
+          throw errorData;
+        }
+        
+        const data: User[] = await response.json();
+        setUsers(data);
+      } catch (err) {
+        setError(err as ApiError);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+
+  return (
+    <ul>
+      {users.map(user => (
+        <li key={user.id}>
+          {user.name} ({user.email})
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Rule: Type-Safe Routing
+
+Use proper typing with React Router.
+
+```tsx
+import { BrowserRouter, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
+
+// Type for route parameters
+interface UserParams {
+  userId: string;
+}
+
+// User detail page with typed params
+function UserDetail() {
+  const { userId } = useParams<UserParams>();
+  const navigate = useNavigate();
+  
+  return (
+    <div>
+      <h2>User ID: {userId}</h2>
+      <button onClick={() => navigate('/')}>Back to List</button>
+    </div>
+  );
+}
+
+// App with typed routes
+function App() {
+  return (
+    <BrowserRouter>
+      <nav>
+        <Link to="/">Users</Link>
+      </nav>
+      <Routes>
+        <Route path="/" element={<UserList />} />
+        <Route path="/user/:userId" element={<UserDetail />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```

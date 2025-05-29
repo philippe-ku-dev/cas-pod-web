@@ -1,0 +1,251 @@
+---
+description: 
+globs: 
+---
+ ---
+description: IMPLEMENT TanStack Query patterns when FETCHING data to ENSURE performance and caching
+globs: "**/*.{ts,tsx}"
+---
+
+# TanStack Query Implementation Standards
+
+<version>1.0.0</version>
+
+## Context
+- When implementing data fetching in React applications
+- When managing server state with TanStack Query (React Query)
+- When implementing caching and invalidation strategies
+- When handling loading, error, and success states
+
+## Requirements
+- Always use proper query keys for caching and invalidation
+- Implement error boundaries for query error handling
+- Use suspense mode when appropriate for loading states
+- Follow proper TypeScript types for query results
+- Implement proper prefetching strategies for performance
+- Use stale time and cache time appropriately
+
+## Implementation Patterns
+
+### Basic Query Implementation
+
+<example>
+  // ✅ Correct query implementation with types
+  import { useQuery } from '@tanstack/react-query'
+
+  interface Todo {
+    id: number
+    title: string
+    completed: boolean
+  }
+
+  function TodoList() {
+    const {
+      data: todos,
+      isLoading,
+      error
+    } = useQuery<Todo[]>({
+      queryKey: ['todos'],
+      queryFn: async () => {
+        const response = await fetch('/api/todos')
+        if (!response.ok) {
+          throw new Error('Network response was not ok')
+        }
+        return response.json()
+      }
+    })
+
+    if (isLoading) return <div>Loading...</div>
+    if (error) return <div>Error: {error.message}</div>
+
+    return (
+      <ul>
+        {todos?.map(todo => (
+          <li key={todo.id}>{todo.title}</li>
+        ))}
+      </ul>
+    )
+  }
+</example>
+
+### Query Keys and Cache Invalidation
+
+<example>
+  // ✅ Correct query key structure and invalidation
+  import { useQuery, useQueryClient } from '@tanstack/react-query'
+
+  // Structured query keys
+  const todoKeys = {
+    all: ['todos'] as const,
+    lists: () => [...todoKeys.all, 'list'] as const,
+    list: (filters: string) => [...todoKeys.lists(), { filters }] as const,
+    details: () => [...todoKeys.all, 'detail'] as const,
+    detail: (id: number) => [...todoKeys.details(), id] as const,
+  }
+
+  function TodoItem({ id }: { id: number }) {
+    const queryClient = useQueryClient()
+    
+    const { data: todo } = useQuery({
+      queryKey: todoKeys.detail(id),
+      queryFn: () => fetchTodoById(id)
+    })
+
+    const updateTodo = async () => {
+      await saveTodo(todo)
+      // Invalidate specific todo and list
+      await queryClient.invalidateQueries({
+        queryKey: todoKeys.detail(id)
+      })
+      await queryClient.invalidateQueries({
+        queryKey: todoKeys.lists()
+      })
+    }
+  }
+</example>
+
+### Prefetching and Optimistic Updates
+
+<example>
+  // ✅ Correct prefetching implementation
+  function TodoList() {
+    const queryClient = useQueryClient()
+
+    // Prefetch on hover
+    const prefetchTodo = (id: number) => {
+      queryClient.prefetchQuery({
+        queryKey: ['todo', id],
+        queryFn: () => fetchTodoById(id),
+        staleTime: 10 * 1000, // Consider stale after 10 seconds
+      })
+    }
+
+    // Optimistic update
+    const addTodo = async (newTodo: Todo) => {
+      const queryClient = useQueryClient()
+      
+      await queryClient.cancelQueries({ queryKey: ['todos'] })
+      
+      const previousTodos = queryClient.getQueryData<Todo[]>(['todos'])
+      
+      queryClient.setQueryData(['todos'], (old: Todo[] = []) => [
+        ...old,
+        newTodo,
+      ])
+      
+      try {
+        await createTodo(newTodo)
+        queryClient.invalidateQueries({ queryKey: ['todos'] })
+      } catch (error) {
+        queryClient.setQueryData(['todos'], previousTodos)
+      }
+    }
+
+    return (
+      <ul>
+        {todos?.map(todo => (
+          <li 
+            key={todo.id}
+            onMouseEnter={() => prefetchTodo(todo.id)}
+          >
+            {todo.title}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</example>
+
+### Infinite Queries
+
+<example>
+  // ✅ Correct infinite query implementation
+  function InfiniteTodoList() {
+    const {
+      data,
+      fetchNextPage,
+      hasNextPage,
+      isFetchingNextPage,
+    } = useInfiniteQuery({
+      queryKey: ['todos', 'infinite'],
+      queryFn: ({ pageParam = 0 }) => fetchTodoPage(pageParam),
+      getNextPageParam: (lastPage, pages) => lastPage.nextCursor,
+    })
+
+    return (
+      <div>
+        {data?.pages.map((group, i) => (
+          <React.Fragment key={i}>
+            {group.todos.map(todo => (
+              <p key={todo.id}>{todo.title}</p>
+            ))}
+          </React.Fragment>
+        ))}
+        <button
+          onClick={() => fetchNextPage()}
+          disabled={!hasNextPage || isFetchingNextPage}
+        >
+          {isFetchingNextPage
+            ? 'Loading more...'
+            : hasNextPage
+            ? 'Load More'
+            : 'Nothing more to load'}
+        </button>
+      </div>
+    )
+  }
+</example>
+
+## Common Mistakes
+
+<example type="invalid">
+  // ❌ INCORRECT: Missing error handling
+  function BadTodoList() {
+    const { data } = useQuery({
+      queryKey: ['todos'],
+      queryFn: () => fetch('/api/todos').then(res => res.json())
+    })
+
+    return <div>{data.map(todo => todo.title)}</div> // Will crash if data is undefined
+  }
+</example>
+
+<example type="invalid">
+  // ❌ INCORRECT: Improper query key structure
+  function BadQueryKeys() {
+    const { data } = useQuery({
+      queryKey: 'todos', // Should be an array
+      queryFn: () => fetchTodos()
+    })
+  }
+</example>
+
+<example type="invalid">
+  // ❌ INCORRECT: Mutation without optimistic updates
+  function BadMutation() {
+    const mutation = useMutation({
+      mutationFn: updateTodo,
+      // Missing onMutate, onError, onSettled
+      // No optimistic update handling
+    })
+  }
+</example>
+
+## Performance Considerations
+
+<danger>
+  Avoid these common performance pitfalls:
+  
+  - Not setting appropriate staleTime (defaults to 0)
+  - Not implementing proper prefetching strategies
+  - Over-fetching by not structuring query keys properly
+  - Not handling background refetches appropriately
+  - Missing proper cache invalidation strategies
+</danger>
+
+Always consider:
+- Setting appropriate staleTime and cacheTime
+- Implementing proper prefetching for known navigation paths
+- Using suspense mode when appropriate
+- Structuring query keys for efficient cache management
+- Implementing proper error boundaries

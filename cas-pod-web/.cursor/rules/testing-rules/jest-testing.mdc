@@ -1,0 +1,550 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # Jest Testing Rules
+
+This rule file provides guidelines for using Jest as a testing framework based on the official Jest documentation.
+
+## Rule: Basic Test Structure
+
+Write clear, descriptive tests with proper structure.
+
+```javascript
+// Import the function to test
+const sum = require('./sum');
+
+// Test suite
+describe('sum module', () => {
+  // Individual test case
+  test('adds 1 + 2 to equal 3', () => {
+    // Expectation
+    expect(sum(1, 2)).toBe(3);
+  });
+});
+```
+
+## Rule: Jest Configuration
+
+Set up Jest configuration in package.json or dedicated jest.config.js file.
+
+```javascript
+// package.json
+{
+  "jest": {
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "collectCoverageFrom": [
+      "src/**/*.{js,jsx,ts,tsx}",
+      "!src/**/*.d.ts"
+    ]
+  }
+}
+
+// or jest.config.js
+module.exports = {
+  testEnvironment: 'node',
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
+  },
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx,ts,tsx}',
+    '!src/**/*.d.ts'
+  ]
+};
+```
+
+## Rule: Using Matchers
+
+Use appropriate matchers for assertions.
+
+```javascript
+test('using different matchers', () => {
+  // Exact equality
+  expect(2 + 2).toBe(4);
+  
+  // Object matching
+  expect({ name: 'John', age: 30 }).toEqual({ name: 'John', age: 30 });
+  
+  // Truthiness
+  expect(true).toBeTruthy();
+  expect(false).toBeFalsy();
+  expect(null).toBeNull();
+  expect(undefined).toBeUndefined();
+  expect('value').toBeDefined();
+  
+  // Numbers
+  expect(10).toBeGreaterThan(5);
+  expect(10).toBeGreaterThanOrEqual(10);
+  expect(5).toBeLessThan(10);
+  expect(5).toBeLessThanOrEqual(5);
+  expect(0.1 + 0.2).toBeCloseTo(0.3, 5);
+  
+  // Strings
+  expect('Hello world').toMatch(/world/);
+  
+  // Arrays
+  expect([1, 2, 3]).toContain(2);
+  expect(['apple', 'banana']).toContainEqual('apple');
+  
+  // Exceptions
+  expect(() => {
+    throw new Error('Invalid input');
+  }).toThrow();
+  expect(() => {
+    throw new Error('Invalid input');
+  }).toThrow('Invalid input');
+});
+```
+
+## Rule: Testing Asynchronous Code
+
+Handle asynchronous operations in tests properly.
+
+```javascript
+// Promises
+test('resolves to user data', () => {
+  return fetchUser(1).then(data => {
+    expect(data.name).toBe('John');
+  });
+});
+
+// Async/Await
+test('fetches user data asynchronously', async () => {
+  const data = await fetchUser(1);
+  expect(data.name).toBe('John');
+});
+
+// Callbacks (with done)
+test('calls callback with data', done => {
+  fetchUserCallback(1, (error, data) => {
+    expect(error).toBeNull();
+    expect(data.name).toBe('John');
+    done();
+  });
+});
+
+// Resolves/Rejects assertions
+test('promise resolves to expected value', () => {
+  return expect(fetchUser(1)).resolves.toEqual({ id: 1, name: 'John' });
+});
+
+test('promise rejects with error', () => {
+  return expect(fetchUser(-1)).rejects.toThrow('Invalid ID');
+});
+```
+
+## Rule: Setup and Teardown
+
+Use setup and teardown functions for test preparation and cleanup.
+
+```javascript
+// File-level setup/teardown
+beforeAll(() => {
+  // Setup before all tests
+  return initDatabase();
+});
+
+afterAll(() => {
+  // Cleanup after all tests
+  return closeDatabase();
+});
+
+// Test-level setup/teardown
+beforeEach(() => {
+  // Setup before each test
+  return clearDatabase();
+});
+
+afterEach(() => {
+  // Cleanup after each test
+  return resetMocks();
+});
+
+// Scoped setup/teardown
+describe('with authenticated user', () => {
+  beforeAll(() => {
+    // Log in before tests in this block
+    return login();
+  });
+  
+  afterAll(() => {
+    // Log out after tests in this block
+    return logout();
+  });
+  
+  test('can access protected resource', () => {
+    // Test with authenticated user
+  });
+});
+```
+
+## Rule: Mock Functions
+
+Use mock functions to test function calls and interactions.
+
+```javascript
+test('calls callback with correct arguments', () => {
+  // Create a mock function
+  const mockCallback = jest.fn();
+  
+  // Call the function with the mock
+  forEach([1, 2], mockCallback);
+  
+  // Assert on mock calls
+  expect(mockCallback.mock.calls.length).toBe(2);
+  expect(mockCallback.mock.calls[0][0]).toBe(1);
+  expect(mockCallback.mock.calls[1][0]).toBe(2);
+});
+
+test('returns specified value', () => {
+  const mock = jest.fn();
+  
+  // Configure mock return values
+  mock.mockReturnValueOnce(10)
+      .mockReturnValueOnce('hello')
+      .mockReturnValue(true);
+  
+  expect(mock()).toBe(10);
+  expect(mock()).toBe('hello');
+  expect(mock()).toBe(true);
+  expect(mock()).toBe(true);
+});
+
+test('implements custom mock behavior', () => {
+  const mock = jest.fn(x => x * 2);
+  
+  expect(mock(5)).toBe(10);
+});
+```
+
+## Rule: Mocking Modules
+
+Mock external dependencies for isolated testing.
+
+```javascript
+// Mocking a module
+jest.mock('./database');
+
+// Import mocked module
+const db = require('./database');
+
+test('saves user to database', () => {
+  // Create mock implementation
+  db.saveUser.mockResolvedValue({ success: true });
+  
+  // Test code that uses the database
+  return saveUserData({ name: 'John' }).then(result => {
+    expect(result.success).toBe(true);
+    expect(db.saveUser).toHaveBeenCalledWith({ name: 'John' });
+  });
+});
+
+// Partial mocking
+jest.mock('./utils', () => {
+  const originalModule = jest.requireActual('./utils');
+  return {
+    ...originalModule,
+    formatDate: jest.fn(() => '2023-04-01')
+  };
+});
+```
+
+## Rule: Timer Mocks
+
+Control time in tests using timer mocks.
+
+```javascript
+// Mock timers
+jest.useFakeTimers();
+
+test('calls function after 1 second', () => {
+  const callback = jest.fn();
+  
+  // Set up a delayed function call
+  setTimeout(callback, 1000);
+  
+  // Fast-forward time
+  jest.advanceTimersByTime(1000);
+  
+  // The callback should have been called
+  expect(callback).toHaveBeenCalled();
+});
+
+test('runs all pending timers', () => {
+  const callback1 = jest.fn();
+  const callback2 = jest.fn();
+  
+  setTimeout(callback1, 1000);
+  setTimeout(callback2, 2000);
+  
+  // Run all timers
+  jest.runAllTimers();
+  
+  expect(callback1).toHaveBeenCalled();
+  expect(callback2).toHaveBeenCalled();
+});
+
+// Cleanup after tests
+afterEach(() => {
+  jest.useRealTimers();
+});
+```
+
+## Rule: Snapshot Testing
+
+Use snapshots for UI component testing.
+
+```javascript
+import renderer from 'react-test-renderer';
+import Button from './Button';
+
+test('Button renders correctly', () => {
+  const component = renderer.create(
+    <Button label="Click me" />
+  );
+  
+  // Create snapshot
+  const tree = component.toJSON();
+  expect(tree).toMatchSnapshot();
+});
+
+// Update snapshots when component changes intentionally
+// Run: jest --updateSnapshot
+```
+
+## Rule: Testing React Components
+
+Test React components with proper setup.
+
+```javascript
+import { render, screen, fireEvent } from '@testing-library/react';
+import Button from './Button';
+
+test('calls onClick when clicked', () => {
+  const handleClick = jest.fn();
+  
+  render(<Button onClick={handleClick} label="Click me" />);
+  
+  // Find the button
+  const button = screen.getByText('Click me');
+  
+  // Simulate click
+  fireEvent.click(button);
+  
+  // Verify callback was called
+  expect(handleClick).toHaveBeenCalledTimes(1);
+});
+
+test('shows loading state', () => {
+  render(<Button loading={true} label="Submit" />);
+  
+  expect(screen.getByText('Loading...')).toBeInTheDocument();
+  expect(screen.queryByText('Submit')).not.toBeInTheDocument();
+});
+```
+
+## Rule: Testing with TypeScript
+
+Configure Jest to work with TypeScript.
+
+```javascript
+// jest.config.js for TypeScript
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  transform: {
+    '^.+\\.tsx?$': 'ts-jest',
+  },
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+};
+
+// TypeScript test file
+import { sum } from './sum';
+
+describe('sum function', () => {
+  test('adds numbers correctly', () => {
+    expect(sum(1, 2)).toBe(3);
+  });
+  
+  test('infers correct types', () => {
+    // TypeScript knows sum returns a number
+    const result: number = sum(5, 10);
+    expect(result).toBe(15);
+  });
+});
+```
+
+## Rule: Test Coverage
+
+Configure and measure test coverage.
+
+```javascript
+// jest.config.js with coverage configuration
+module.exports = {
+  collectCoverage: true,
+  coverageDirectory: 'coverage',
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx,ts,tsx}',
+    '!src/**/*.d.ts',
+    '!src/index.{js,ts}',
+    '!src/reportWebVitals.{js,ts}'
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
+  }
+};
+
+// Run with: jest --coverage
+```
+
+## Rule: Parameterized Tests
+
+Use test.each for parameterized tests.
+
+```javascript
+// Basic parameterized test
+test.each([
+  [1, 1, 2],
+  [1, 2, 3],
+  [2, 2, 4]
+])('add(%i, %i) => %i', (a, b, expected) => {
+  expect(add(a, b)).toBe(expected);
+});
+
+// With named parameters
+test.each([
+  { a: 1, b: 1, expected: 2 },
+  { a: 1, b: 2, expected: 3 },
+  { a: 2, b: 2, expected: 4 }
+])('add($a, $b) => $expected', ({ a, b, expected }) => {
+  expect(add(a, b)).toBe(expected);
+});
+
+// With describe.each
+describe.each([
+  { name: 'John', age: 30 },
+  { name: 'Jane', age: 25 }
+])('User %s', (user) => {
+  test(`${user.name} is valid age`, () => {
+    expect(user.age).toBeGreaterThan(0);
+  });
+  
+  test(`${user.name} has valid name`, () => {
+    expect(user.name.length).toBeGreaterThan(0);
+  });
+});
+```
+
+## Rule: Custom Matchers
+
+Create custom matchers for domain-specific assertions.
+
+```javascript
+// Define custom matcher
+expect.extend({
+  toBeWithinRange(received, floor, ceiling) {
+    const pass = received >= floor && received <= ceiling;
+    if (pass) {
+      return {
+        message: () => `expected ${received} not to be within range ${floor} - ${ceiling}`,
+        pass: true
+      };
+    } else {
+      return {
+        message: () => `expected ${received} to be within range ${floor} - ${ceiling}`,
+        pass: false
+      };
+    }
+  }
+});
+
+// Use custom matcher
+test('numeric ranges', () => {
+  expect(100).toBeWithinRange(90, 110);
+  expect(101).not.toBeWithinRange(0, 100);
+});
+
+// For TypeScript, add type definitions
+declare global {
+  namespace jest {
+    interface Matchers<R> {
+      toBeWithinRange(floor: number, ceiling: number): R;
+    }
+  }
+}
+```
+
+## Rule: Jest Test Organization
+
+Organize tests for maintainability.
+
+```
+src/
+├── components/
+│   ├── Button.js
+│   └── Button.test.js   # Component test alongside component
+├── services/
+│   ├── api.js
+│   └── __tests__/       # Directory for service tests
+│       └── api.test.js
+├── utils/
+│   ├── helpers.js
+│   └── helpers.test.js
+└── __tests__/           # Global test directory
+    └── integration.test.js
+```
+
+## Rule: Continuous Integration
+
+Configure Jest for CI environments.
+
+```javascript
+// jest.config.ci.js
+module.exports = {
+  ...require('./jest.config'),
+  reporters: [
+    'default',
+    ['jest-junit', {
+      outputDirectory: 'test-results/jest',
+      outputName: 'results.xml',
+    }]
+  ],
+  collectCoverage: true,
+  coverageReporters: ['text', 'lcov'],
+  // Fail CI if coverage drops below thresholds
+  coverageThreshold: {
+    global: {
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
+  }
+};
+
+// package.json
+{
+  "scripts": {
+    "test:ci": "jest --config jest.config.ci.js --runInBand"
+  }
+}
+```

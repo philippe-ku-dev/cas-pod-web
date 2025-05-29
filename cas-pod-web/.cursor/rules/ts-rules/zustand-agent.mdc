@@ -1,0 +1,253 @@
+---
+description: 
+globs: 
+---
+ ---
+description: IMPLEMENT Zustand patterns when MANAGING state to ENSURE performance and maintainability
+globs: "**/*.{ts,tsx}"
+---
+
+# Zustand State Management Standards
+
+<version>1.0.0</version>
+
+## Context
+- When implementing global state management with Zustand
+- When creating and organizing stores
+- When handling complex state updates
+- When implementing state persistence
+- When combining multiple stores
+
+## Requirements
+- Use proper TypeScript types for store state and actions
+- Implement proper state immutability
+- Follow store organization best practices
+- Handle async actions correctly
+- Implement proper state persistence when needed
+- Use middleware appropriately
+
+## Implementation Patterns
+
+### Basic Store Setup
+
+<example>
+  // ✅ Correct store implementation with TypeScript
+  import { create } from 'zustand'
+  import { devtools } from 'zustand/middleware'
+
+  interface TodoState {
+    todos: Todo[]
+    isLoading: boolean
+    error: Error | null
+    // Actions
+    addTodo: (todo: Todo) => void
+    removeTodo: (id: string) => void
+    toggleTodo: (id: string) => void
+    fetchTodos: () => Promise<void>
+  }
+
+  const useTodoStore = create<TodoState>()(
+    devtools(
+      (set, get) => ({
+        todos: [],
+        isLoading: false,
+        error: null,
+
+        addTodo: (todo) => 
+          set((state) => ({ 
+            todos: [...state.todos, todo] 
+          })),
+
+        removeTodo: (id) =>
+          set((state) => ({
+            todos: state.todos.filter((todo) => todo.id !== id)
+          })),
+
+        toggleTodo: (id) =>
+          set((state) => ({
+            todos: state.todos.map((todo) =>
+              todo.id === id 
+                ? { ...todo, completed: !todo.completed }
+                : todo
+            )
+          })),
+
+        fetchTodos: async () => {
+          set({ isLoading: true, error: null })
+          try {
+            const response = await fetch('/api/todos')
+            const todos = await response.json()
+            set({ todos, isLoading: false })
+          } catch (error) {
+            set({ 
+              error: error instanceof Error ? error : new Error('Failed to fetch'),
+              isLoading: false 
+            })
+          }
+        }
+      })
+    )
+  )
+</example>
+
+### Store Slices and Organization
+
+<example>
+  // ✅ Correct store organization with slices
+  interface UIState {
+    theme: 'light' | 'dark'
+    setTheme: (theme: 'light' | 'dark') => void
+  }
+
+  interface AuthState {
+    user: User | null
+    login: (credentials: Credentials) => Promise<void>
+    logout: () => void
+  }
+
+  const createUISlice = (set) => ({
+    theme: 'light',
+    setTheme: (theme) => set({ theme })
+  })
+
+  const createAuthSlice = (set) => ({
+    user: null,
+    login: async (credentials) => {
+      const user = await loginUser(credentials)
+      set({ user })
+    },
+    logout: () => set({ user: null })
+  })
+
+  const useStore = create<UIState & AuthState>()(
+    devtools(
+      (...a) => ({
+        ...createUISlice(...a),
+        ...createAuthSlice(...a)
+      })
+    )
+  )
+</example>
+
+### Persistence and Hydration
+
+<example>
+  // ✅ Correct persistence implementation
+  import { persist } from 'zustand/middleware'
+
+  const usePersistStore = create(
+    persist(
+      (set) => ({
+        preferences: {
+          theme: 'light',
+          fontSize: 14
+        },
+        setPreference: (key, value) =>
+          set((state) => ({
+            preferences: {
+              ...state.preferences,
+              [key]: value
+            }
+          }))
+      }),
+      {
+        name: 'user-preferences',
+        partialize: (state) => ({ preferences: state.preferences })
+      }
+    )
+  )
+</example>
+
+### Computed Values and Selectors
+
+<example>
+  // ✅ Correct selector implementation
+  interface TodoStore {
+    todos: Todo[]
+    filter: 'all' | 'active' | 'completed'
+    setFilter: (filter: 'all' | 'active' | 'completed') => void
+  }
+
+  const useTodoStore = create<TodoStore>()((set) => ({
+    todos: [],
+    filter: 'all',
+    setFilter: (filter) => set({ filter })
+  }))
+
+  // Selector functions
+  const selectFilteredTodos = (state: TodoStore) => {
+    switch (state.filter) {
+      case 'active':
+        return state.todos.filter(todo => !todo.completed)
+      case 'completed':
+        return state.todos.filter(todo => todo.completed)
+      default:
+        return state.todos
+    }
+  }
+
+  // Usage in component
+  function TodoList() {
+    const filteredTodos = useTodoStore(selectFilteredTodos)
+    return (
+      <ul>
+        {filteredTodos.map(todo => (
+          <TodoItem key={todo.id} todo={todo} />
+        ))}
+      </ul>
+    )
+  }
+</example>
+
+## Common Mistakes
+
+<example type="invalid">
+  // ❌ INCORRECT: Mutating state directly
+  const useBadStore = create((set) => ({
+    todos: [],
+    addTodo: (todo) => {
+      const todos = get().todos
+      todos.push(todo) // Mutating state directly
+      set({ todos })
+    }
+  }))
+</example>
+
+<example type="invalid">
+  // ❌ INCORRECT: Not handling async errors
+  const useBadAsyncStore = create((set) => ({
+    data: null,
+    fetchData: async () => {
+      const response = await fetch('/api/data') // No try/catch
+      const data = await response.json()
+      set({ data })
+    }
+  }))
+</example>
+
+<example type="invalid">
+  // ❌ INCORRECT: Inefficient selectors
+  function BadComponent() {
+    const store = useStore() // Getting entire store
+    return <div>{store.someValue}</div> // Should select specific value
+  }
+</example>
+
+## Performance Considerations
+
+<danger>
+  Avoid these common performance issues:
+  
+  - Subscribing to the entire store instead of using selectors
+  - Creating new objects in selectors causing unnecessary rerenders
+  - Not memoizing complex selectors
+  - Over-persisting state data
+  - Not using proper TypeScript types
+</danger>
+
+Always ensure:
+- Use selectors to subscribe to specific state changes
+- Memoize complex selectors with useCallback
+- Only persist necessary state
+- Implement proper state immutability
+- Use middleware appropriately for debugging and persistence

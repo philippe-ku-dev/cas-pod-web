@@ -1,0 +1,246 @@
+---
+description: 
+globs: 
+---
+ ---
+description: IMPLEMENT Auth Context patterns when MANAGING authentication to ENSURE secure and consistent state
+globs: "**/*.{ts,tsx}"
+---
+
+# Auth Context Implementation Standards
+
+<version>1.0.0</version>
+
+## Context
+- When implementing authentication state management
+- When creating protected routes and components
+- When handling user sessions and permissions
+- When implementing auth-related hooks and utilities
+
+## Requirements
+- Implement proper TypeScript types for auth state and context
+- Handle loading and error states appropriately
+- Provide clear auth-related utility functions
+- Implement proper session persistence
+- Handle auth state changes consistently
+- Protect routes and components based on auth state
+
+## Implementation Patterns
+
+### Basic Auth Context Setup
+
+<example>
+  // ✅ Correct Auth Context implementation
+  import { createContext, useContext, useState, useEffect } from 'react'
+
+  interface User {
+    id: string
+    email: string
+    role: string
+  }
+
+  interface AuthContextType {
+    user: User | null
+    isLoading: boolean
+    error: Error | null
+    login: (email: string, password: string) => Promise<void>
+    logout: () => Promise<void>
+    signup: (email: string, password: string) => Promise<void>
+  }
+
+  const AuthContext = createContext<AuthContextType | null>(null)
+
+  export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<User | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<Error | null>(null)
+
+    useEffect(() => {
+      // Check for existing session
+      checkAuthSession()
+        .then(user => setUser(user))
+        .catch(setError)
+        .finally(() => setIsLoading(false))
+    }, [])
+
+    const login = async (email: string, password: string) => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        const user = await loginUser(email, password)
+        setUser(user)
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Login failed'))
+        throw err
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    const value = {
+      user,
+      isLoading,
+      error,
+      login,
+      logout: async () => {
+        await logoutUser()
+        setUser(null)
+      },
+      signup: async (email: string, password: string) => {
+        const user = await signupUser(email, password)
+        setUser(user)
+      }
+    }
+
+    return (
+      <AuthContext.Provider value={value}>
+        {children}
+      </AuthContext.Provider>
+    )
+  }
+</example>
+
+### Auth Hook Implementation
+
+<example>
+  // ✅ Correct Auth Hook implementation
+  export function useAuth() {
+    const context = useContext(AuthContext)
+    if (!context) {
+      throw new Error('useAuth must be used within an AuthProvider')
+    }
+    return context
+  }
+
+  // Usage in components
+  function ProtectedComponent() {
+    const { user, isLoading } = useAuth()
+
+    if (isLoading) return <div>Loading...</div>
+    if (!user) return <div>Please log in</div>
+
+    return <div>Welcome {user.email}</div>
+  }
+</example>
+
+### Protected Route Implementation
+
+<example>
+  // ✅ Correct Protected Route implementation
+  interface ProtectedRouteProps {
+    children: React.ReactNode
+    requiredRole?: string
+  }
+
+  function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+    const { user, isLoading } = useAuth()
+    const router = useRouter()
+
+    useEffect(() => {
+      if (!isLoading && !user) {
+        router.push('/login?redirect=' + window.location.pathname)
+      }
+      
+      if (user && requiredRole && user.role !== requiredRole) {
+        router.push('/unauthorized')
+      }
+    }, [user, isLoading, requiredRole, router])
+
+    if (isLoading) {
+      return <LoadingSpinner />
+    }
+
+    if (!user || (requiredRole && user.role !== requiredRole)) {
+      return null
+    }
+
+    return <>{children}</>
+  }
+</example>
+
+### Session Persistence
+
+<example>
+  // ✅ Correct session persistence implementation
+  function AuthProvider({ children }: { children: React.ReactNode }) {
+    // ... other state
+
+    useEffect(() => {
+      // Listen for auth state changes
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          // Get additional user data if needed
+          const userData = await getUserData(user.uid)
+          setUser({
+            id: user.uid,
+            email: user.email!,
+            ...userData
+          })
+        } else {
+          setUser(null)
+        }
+        setIsLoading(false)
+      })
+
+      return () => unsubscribe()
+    }, [])
+
+    // ... rest of provider
+  }
+</example>
+
+## Common Mistakes
+
+<example type="invalid">
+  // ❌ INCORRECT: Not handling loading state
+  function BadAuthImplementation() {
+    const [user, setUser] = useState(null)
+    
+    return (
+      <AuthContext.Provider value={{ user }}>
+        {children} {/* Components might render before auth check */}
+      </AuthContext.Provider>
+    )
+  }
+</example>
+
+<example type="invalid">
+  // ❌ INCORRECT: Unsafe type assertions
+  function BadTypeHandling() {
+    const auth = useAuth()
+    
+    return <div>{auth.user!.email}</div> // Might crash if user is null
+  }
+</example>
+
+<example type="invalid">
+  // ❌ INCORRECT: Not handling errors
+  async function BadErrorHandling() {
+    const { login } = useAuth()
+    
+    const handleSubmit = async () => {
+      await login(email, password) // No try/catch block
+    }
+  }
+</example>
+
+## Security Considerations
+
+<danger>
+  Critical security practices to follow:
+  
+  - Never store sensitive auth data in localStorage
+  - Always use HTTPS for auth requests
+  - Implement proper CSRF protection
+  - Use secure session management
+  - Implement proper token refresh mechanisms
+  - Handle auth errors securely
+</danger>
+
+Always ensure:
+- Proper session timeout handling
+- Secure storage of auth tokens
+- Clear error messages without exposing sensitive info
+- Proper role-based access control
+- Secure logout procedures
+- Protection against common auth vulnerabilities

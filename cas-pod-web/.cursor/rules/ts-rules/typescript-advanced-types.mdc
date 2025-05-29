@@ -1,0 +1,289 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # TypeScript Advanced Types
+
+This rule file focuses on TypeScript's advanced type system features based on official TypeScript documentation.
+
+## Rule: Utility Types
+
+Use TypeScript's built-in utility types for common type transformations.
+
+```typescript
+// Make all properties optional
+type PartialUser = Partial<User>;
+
+// Make all properties required
+type RequiredConfig = Required<Config>;
+
+// Make all properties readonly
+type ReadonlyData = Readonly<Data>;
+
+// Pick specific properties
+type UserCredentials = Pick<User, 'email' | 'password'>;
+
+// Omit specific properties
+type PublicUser = Omit<User, 'password' | 'securityQuestions'>;
+
+// Extract types from a union
+type SuccessStatus = Extract<Status, 'success' | 'warning'>;
+
+// Remove types from a union
+type NonErrorStatus = Exclude<Status, 'error'>;
+
+// Construct a type with non-nullable properties
+type NonNullableConfig = NonNullable<Config>;
+
+// Get return type of a function
+type FetchResult = ReturnType<typeof fetchData>;
+
+// Get instance type of a constructor
+type DateType = InstanceType<typeof Date>;
+```
+
+## Rule: Type Guards and Type Narrowing
+
+Use type guards for type narrowing.
+
+```typescript
+// User-defined type guards
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function isUser(obj: unknown): obj is User {
+  return (
+    obj !== null &&
+    typeof obj === 'object' &&
+    'id' in obj &&
+    'name' in obj
+  );
+}
+
+// Usage
+function processValue(value: unknown): string {
+  if (isString(value)) {
+    // TypeScript knows value is a string here
+    return value.toUpperCase();
+  }
+  return String(value);
+}
+```
+
+## Rule: Conditional Types
+
+Use conditional types for complex type logic.
+
+```typescript
+// Basic conditional type
+type TypeName<T> = 
+  T extends string ? 'string' :
+  T extends number ? 'number' :
+  T extends boolean ? 'boolean' :
+  T extends undefined ? 'undefined' :
+  T extends Function ? 'function' :
+  'object';
+
+// With infer for extracting types
+type Unpacked<T> = 
+  T extends Array<infer U> ? U :
+  T extends Promise<infer U> ? U :
+  T extends Map<any, infer U> ? U :
+  T;
+
+// Usage
+type T0 = TypeName<string>;  // 'string'
+type T1 = Unpacked<string[]>;  // string
+type T2 = Unpacked<Promise<number>>;  // number
+```
+
+## Rule: Mapped Types
+
+Use mapped types for transforming each property in a type.
+
+```typescript
+// Making all properties nullable
+type Nullable<T> = { [P in keyof T]: T[P] | null };
+
+// Adding 'get' prefix to property names
+type Getters<T> = {
+  [P in keyof T as `get${Capitalize<string & P>}`]: () => T[P]
+};
+
+// Usage
+interface User {
+  name: string;
+  age: number;
+}
+
+type NullableUser = Nullable<User>;
+// { name: string | null; age: number | null; }
+
+type UserGetters = Getters<User>;
+// { getName: () => string; getAge: () => number; }
+```
+
+## Rule: Template Literal Types
+
+Use template literal types for string manipulation at the type level.
+
+```typescript
+type EventName<T extends string> = `${T}Changed`;
+type PropEventNames<T> = `${keyof T & string}Changed`;
+
+// Usage
+interface User {
+  name: string;
+  age: number;
+}
+
+type UserEvents = PropEventNames<User>;
+// 'nameChanged' | 'ageChanged'
+```
+
+## Rule: Intersection Types
+
+Use intersection types to combine multiple types.
+
+```typescript
+interface ErrorHandling {
+  success: boolean;
+  error?: { message: string };
+}
+
+interface ResourceData {
+  data: object;
+}
+
+// Combine both interfaces
+type ResourceResponse = ErrorHandling & ResourceData;
+
+// Usage
+function handleResponse(response: ResourceResponse) {
+  if (response.success) {
+    // process data
+    console.log(response.data);
+  } else {
+    // handle error
+    console.error(response.error?.message);
+  }
+}
+```
+
+## Rule: Type Recursion
+
+Use recursive types for tree-like structures.
+
+```typescript
+type TreeNode<T> = {
+  value: T;
+  children?: TreeNode<T>[];
+};
+
+// Usage
+const tree: TreeNode<string> = {
+  value: 'root',
+  children: [
+    { value: 'child1' },
+    {
+      value: 'child2',
+      children: [{ value: 'grandchild' }]
+    }
+  ]
+};
+```
+
+## Rule: Branded Types
+
+Use branded types for type safety with primitives.
+
+```typescript
+// Define branded types
+type UserId = string & { readonly __brand: unique symbol };
+type OrderId = string & { readonly __brand: unique symbol };
+
+// Create factory functions
+function createUserId(id: string): UserId {
+  return id as UserId;
+}
+
+function createOrderId(id: string): OrderId {
+  return id as OrderId;
+}
+
+// Usage
+function processUser(userId: UserId) {
+  // Implementation
+}
+
+const userId = createUserId('user-123');
+const orderId = createOrderId('order-456');
+
+processUser(userId); // OK
+processUser(orderId); // Type error! OrderId is not assignable to UserId
+```
+
+## Rule: Index Types and Lookup Types
+
+Use index types and lookup types for type-safe property access.
+
+```typescript
+interface ApiResponse {
+  user: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  posts: {
+    id: number;
+    title: string;
+    content: string;
+  }[];
+}
+
+// Get type of a nested property
+type UserType = ApiResponse['user'];
+type PostType = ApiResponse['posts'][number];
+type EmailType = ApiResponse['user']['email']; // string
+
+// Function with type-safe property access
+function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
+  return obj[key];
+}
+```
+
+## Rule: Discriminated Union Types
+
+Use discriminated unions for state management.
+
+```typescript
+interface LoadingState {
+  status: 'loading';
+}
+
+interface SuccessState<T> {
+  status: 'success';
+  data: T;
+}
+
+interface ErrorState {
+  status: 'error';
+  error: Error;
+}
+
+type State<T> = LoadingState | SuccessState<T> | ErrorState;
+
+// Type-safe state handling
+function renderState<T>(state: State<T>): string {
+  switch (state.status) {
+    case 'loading':
+      return 'Loading...';
+    case 'success':
+      return `Data: ${JSON.stringify(state.data)}`;
+    case 'error':
+      return `Error: ${state.error.message}`;
+  }
+}
+```

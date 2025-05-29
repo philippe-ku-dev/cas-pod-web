@@ -1,0 +1,86 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # Gelato Relay Implementation
+
+## Context
+
+- Apply when implementing or discussing Gelato Relay service
+- Relay allows dApps to sponsor transaction gas fees for users or let users pay with ERC-20 tokens
+- Essential for improving UX by removing gas token requirement for users
+
+## Critical Rules
+
+- Always consider security implications when implementing Relay, especially for ERC-2771 delegatecall vulnerability
+- Use ERC-2771 standard for relaying transactions (recommended approach)
+- Implement proper context validation in target contracts
+- Handle both sponsored calls and non-sponsored calls appropriately
+- Validate sender addresses from _msgSender() rather than msg.sender when using ERC-2771
+- Use CallWithSyncFeeERC2771 for user-paid gas fees with ERC-20 tokens
+- Use SponsoredCallERC2771 for gas fee sponsorship by dApp
+- Integrate with 1Balance service for sponsored transactions
+- Test relay implementations in supported test networks before mainnet deployment
+
+## Examples
+
+<example>
+// Proper ERC-2771 implementation
+// 1. Import required contracts
+import { GelatoRelay } from "@gelatonetwork/relay-sdk";
+
+// 2. Initialize the relay
+const relay = new GelatoRelay();
+
+// 3. Prepare sponsored call with ERC-2771
+const { taskId } = await relay.sponsoredCall(
+  {
+    chainId,
+    target: targetContractAddress,
+    data: encodedFunctionData,
+    user: userAddress, // EOA that signs the message
+  },
+  apiKey
+);
+
+// 4. ERC-2771 compliant contract implementation
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.17;
+
+import {ERC2771Context} from "@gelatonetwork/relay-context/contracts/ERC2771Context.sol";
+
+contract MyContract is ERC2771Context {
+  constructor(address trustedForwarder) ERC2771Context(trustedForwarder) {}
+  
+  function protectedFunction() external {
+    address caller = _msgSender(); // Not msg.sender
+    // Function logic
+  }
+}
+</example>
+
+<example type="invalid">
+// Incorrect Relay implementation
+// 1. Using msg.sender instead of _msgSender()
+function protectedFunction() external {
+  address caller = msg.sender; // WRONG: should use _msgSender()
+  // Function logic
+}
+
+// 2. Not validating trusted forwarder
+contract UnsafeContract {
+  function execute(bytes memory data, address user) external {
+    // No validation of msg.sender as trusted forwarder
+    // No protection against malicious relayers
+  }
+}
+
+// 3. Improper relay initialization
+const relay = new GelatoRelay({
+  provider, // Missing required configuration
+});
+const { taskId } = await relay.callWithSyncFee(
+  // Missing proper parameters and error handling
+);
+</example>

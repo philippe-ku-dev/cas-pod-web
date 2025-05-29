@@ -1,0 +1,574 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # TypeScript Jest Testing Rules
+
+This rule file provides guidelines for testing TypeScript code with Jest.
+
+## Rule: TypeScript Jest Setup
+
+Configure Jest for TypeScript projects.
+
+```typescript
+// jest.config.js
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  transform: {
+    '^.+\\.tsx?$': 'ts-jest',
+  },
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  // Optional: module name mapper for path aliases
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  }
+};
+```
+
+## Rule: TypeScript Type Definitions for Jest
+
+Use proper type definitions for Jest in TypeScript.
+
+```typescript
+// Option 1: Import types from @jest/globals
+import { describe, expect, test, jest } from '@jest/globals';
+
+// Option 2: Use @types/jest (no imports needed, adds to global scope)
+// npm install --save-dev @types/jest
+```
+
+## Rule: Type-Safe Test Functions
+
+Ensure functions being tested have proper type annotations.
+
+```typescript
+// sum.ts
+export function sum(a: number, b: number): number {
+  return a + b;
+}
+
+// sum.test.ts
+import { sum } from './sum';
+
+describe('sum function', () => {
+  test('adds two numbers correctly', () => {
+    expect(sum(1, 2)).toBe(3);
+    
+    // TypeScript will catch this type error at compile time
+    // expect(sum('1', '2')).toBe('12'); // Error: Argument of type 'string' is not assignable to parameter of type 'number'
+  });
+});
+```
+
+## Rule: Mocking TypeScript Modules
+
+Use proper TypeScript typing when mocking modules.
+
+```typescript
+// user-service.ts
+export interface User {
+  id: number;
+  name: string;
+}
+
+export class UserService {
+  async getUser(id: number): Promise<User> {
+    // actual implementation
+    return { id, name: 'John Doe' };
+  }
+}
+
+// user-service.test.ts
+import { UserService, User } from './user-service';
+
+jest.mock('./user-service');
+
+// Get the mock class constructor
+const MockedUserService = UserService as jest.MockedClass<typeof UserService>;
+
+beforeEach(() => {
+  // Clear all mocks
+  MockedUserService.mockClear();
+});
+
+test('mocks UserService.getUser', async () => {
+  // Set up the mock implementation
+  const mockUser: User = { id: 1, name: 'Mock User' };
+  const mockGetUser = jest.fn().mockResolvedValue(mockUser);
+  
+  // Apply mock implementation to instance method
+  MockedUserService.prototype.getUser = mockGetUser;
+  
+  // Create an instance of the mocked class
+  const userService = new UserService();
+  
+  // Use the mocked method
+  const user = await userService.getUser(1);
+  
+  // Verify the mock was called correctly
+  expect(mockGetUser).toHaveBeenCalledWith(1);
+  expect(user).toEqual(mockUser);
+});
+```
+
+## Rule: Type-Safe Mock Functions
+
+Create properly typed mock functions.
+
+```typescript
+// payment-processor.ts
+export interface PaymentResult {
+  success: boolean;
+  transactionId?: string;
+  error?: string;
+}
+
+export interface PaymentProcessor {
+  processPayment(amount: number): Promise<PaymentResult>;
+}
+
+// payment-service.ts
+import { PaymentProcessor, PaymentResult } from './payment-processor';
+
+export class PaymentService {
+  constructor(private processor: PaymentProcessor) {}
+  
+  async makePayment(amount: number): Promise<PaymentResult> {
+    return this.processor.processPayment(amount);
+  }
+}
+
+// payment-service.test.ts
+import { PaymentProcessor, PaymentResult } from './payment-processor';
+import { PaymentService } from './payment-service';
+
+test('makePayment calls processor and returns result', async () => {
+  // Create a typed mock function
+  const mockProcessPayment = jest.fn<Promise<PaymentResult>, [number]>();
+  
+  // Configure the mock to return a success result
+  const successResult: PaymentResult = { 
+    success: true, 
+    transactionId: '123456' 
+  };
+  mockProcessPayment.mockResolvedValue(successResult);
+  
+  // Create a mock processor with the typed mock function
+  const mockProcessor: PaymentProcessor = {
+    processPayment: mockProcessPayment
+  };
+  
+  // Create the service with the mock processor
+  const paymentService = new PaymentService(mockProcessor);
+  
+  // Call the method
+  const result = await paymentService.makePayment(100);
+  
+  // Verify the mock was called correctly
+  expect(mockProcessPayment).toHaveBeenCalledWith(100);
+  expect(result).toEqual(successResult);
+});
+```
+
+## Rule: Type-Safe Spies
+
+Create properly typed Jest spies.
+
+```typescript
+// calculator.ts
+export class Calculator {
+  add(a: number, b: number): number {
+    return a + b;
+  }
+  
+  multiply(a: number, b: number): number {
+    return a * b;
+  }
+}
+
+// calculator.test.ts
+import { Calculator } from './calculator';
+
+test('spies on Calculator methods', () => {
+  const calculator = new Calculator();
+  
+  // Create properly typed spies
+  const addSpy = jest.spyOn(calculator, 'add');
+  const multiplySpy = jest.spyOn(calculator, 'multiply');
+  
+  // TypeScript understands the return type
+  const sum: number = calculator.add(2, 3);
+  const product: number = calculator.multiply(2, 3);
+  
+  // Verify the spies were called correctly
+  expect(addSpy).toHaveBeenCalledWith(2, 3);
+  expect(multiplySpy).toHaveBeenCalledWith(2, 3);
+  expect(sum).toBe(5);
+  expect(product).toBe(6);
+});
+```
+
+## Rule: Testing Asynchronous TypeScript Code
+
+Type-safe testing of async functions and promises.
+
+```typescript
+// data-service.ts
+export interface User {
+  id: number;
+  name: string;
+}
+
+export class DataService {
+  async fetchUser(id: number): Promise<User> {
+    // Implementation
+    return { id, name: 'User ' + id };
+  }
+  
+  async fetchUsers(): Promise<User[]> {
+    // Implementation
+    return [
+      { id: 1, name: 'User 1' },
+      { id: 2, name: 'User 2' }
+    ];
+  }
+}
+
+// data-service.test.ts
+import { DataService, User } from './data-service';
+
+describe('DataService', () => {
+  let service: DataService;
+  
+  beforeEach(() => {
+    service = new DataService();
+  });
+  
+  test('fetchUser returns a user with correct types', async () => {
+    const user = await service.fetchUser(1);
+    
+    // TypeScript knows user has id and name properties
+    expect(user.id).toBe(1);
+    expect(user.name).toBe('User 1');
+    
+    // Type checking ensures we're testing the right shape
+    const expectedUser: User = { id: 1, name: 'User 1' };
+    expect(user).toEqual(expectedUser);
+  });
+  
+  test('fetchUsers returns an array of users', async () => {
+    const users = await service.fetchUsers();
+    
+    // TypeScript knows users is User[]
+    expect(users.length).toBeGreaterThan(0);
+    expect(users[0].id).toBeDefined();
+    expect(users[0].name).toBeDefined();
+  });
+});
+```
+
+## Rule: Type-Safe Assertions
+
+Use TypeScript to ensure type safety in assertions.
+
+```typescript
+// product.ts
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  inStock: boolean;
+}
+
+// product-utils.ts
+import { Product } from './product';
+
+export function getDiscountedPrice(product: Product, discountPercent: number): number {
+  return product.price * (1 - discountPercent / 100);
+}
+
+// product-utils.test.ts
+import { getDiscountedPrice } from './product-utils';
+import { Product } from './product';
+
+test('calculates discounted price correctly', () => {
+  // Type-safe test data
+  const product: Product = {
+    id: 'prod1',
+    name: 'Test Product',
+    price: 100,
+    inStock: true
+  };
+  
+  // TypeScript ensures we pass the right types
+  const discountedPrice = getDiscountedPrice(product, 20);
+  
+  // Type-safe assertions
+  expect(discountedPrice).toBe(80);
+  
+  // TypeScript would catch this type error
+  // expect(discountedPrice).toBe('80'); // Error: Argument of type 'string' is not assignable to parameter of type 'number'
+});
+```
+
+## Rule: Generic Function Testing
+
+Test generic TypeScript functions properly.
+
+```typescript
+// array-utils.ts
+export function first<T>(array: T[]): T | undefined {
+  return array.length > 0 ? array[0] : undefined;
+}
+
+export function last<T>(array: T[]): T | undefined {
+  return array.length > 0 ? array[array.length - 1] : undefined;
+}
+
+// array-utils.test.ts
+import { first, last } from './array-utils';
+
+describe('array utilities', () => {
+  test('first returns first element with correct type', () => {
+    // Test with numbers
+    const numbers = [1, 2, 3];
+    const firstNumber = first(numbers);
+    expect(firstNumber).toBe(1);
+    
+    // Test with strings
+    const strings = ['a', 'b', 'c'];
+    const firstString = first(strings);
+    expect(firstString).toBe('a');
+    
+    // Test with objects
+    interface TestObj { id: number }
+    const objects: TestObj[] = [{ id: 1 }, { id: 2 }];
+    const firstObj = first(objects);
+    expect(firstObj).toEqual({ id: 1 });
+    
+    // Type safety with empty arrays
+    const empty: number[] = [];
+    const result = first(empty);
+    expect(result).toBeUndefined();
+  });
+  
+  test('last returns last element with correct type', () => {
+    const numbers = [1, 2, 3];
+    const lastNumber = last(numbers);
+    expect(lastNumber).toBe(3);
+  });
+});
+```
+
+## Rule: Testing Type Guards
+
+Test TypeScript type guards effectively.
+
+```typescript
+// type-guards.ts
+export interface Dog {
+  type: 'dog';
+  bark: () => void;
+}
+
+export interface Cat {
+  type: 'cat';
+  meow: () => void;
+}
+
+export type Animal = Dog | Cat;
+
+export function isDog(animal: Animal): animal is Dog {
+  return animal.type === 'dog';
+}
+
+export function isCat(animal: Animal): animal is Cat {
+  return animal.type === 'cat';
+}
+
+// type-guards.test.ts
+import { Animal, Dog, Cat, isDog, isCat } from './type-guards';
+
+describe('type guards', () => {
+  const dog: Dog = {
+    type: 'dog',
+    bark: jest.fn()
+  };
+  
+  const cat: Cat = {
+    type: 'cat',
+    meow: jest.fn()
+  };
+  
+  test('isDog correctly identifies dogs', () => {
+    expect(isDog(dog)).toBe(true);
+    expect(isDog(cat)).toBe(false);
+    
+    // Type narrowing works in conditionals
+    const animal: Animal = dog;
+    if (isDog(animal)) {
+      // TypeScript knows this is safe
+      animal.bark();
+      expect(dog.bark).toHaveBeenCalled();
+    }
+  });
+  
+  test('isCat correctly identifies cats', () => {
+    expect(isCat(cat)).toBe(true);
+    expect(isCat(dog)).toBe(false);
+    
+    // Type narrowing works in conditionals
+    const animal: Animal = cat;
+    if (isCat(animal)) {
+      // TypeScript knows this is safe
+      animal.meow();
+      expect(cat.meow).toHaveBeenCalled();
+    }
+  });
+});
+```
+
+## Rule: Testing React Components with TypeScript
+
+Properly type React component tests.
+
+```tsx
+// Button.tsx
+import React from 'react';
+
+export interface ButtonProps {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}
+
+export const Button: React.FC<ButtonProps> = ({ 
+  label, 
+  onClick, 
+  disabled = false 
+}) => (
+  <button 
+    onClick={onClick} 
+    disabled={disabled}
+  >
+    {label}
+  </button>
+);
+
+// Button.test.tsx
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Button, ButtonProps } from './Button';
+
+describe('Button component', () => {
+  // Create type-safe default props
+  const defaultProps: ButtonProps = {
+    label: 'Click me',
+    onClick: jest.fn()
+  };
+  
+  test('renders with label', () => {
+    render(<Button {...defaultProps} />);
+    
+    expect(screen.getByText('Click me')).toBeInTheDocument();
+  });
+  
+  test('calls onClick when clicked', () => {
+    render(<Button {...defaultProps} />);
+    
+    fireEvent.click(screen.getByText('Click me'));
+    
+    expect(defaultProps.onClick).toHaveBeenCalledTimes(1);
+  });
+  
+  test('can be disabled', () => {
+    render(<Button {...defaultProps} disabled={true} />);
+    
+    expect(screen.getByText('Click me')).toBeDisabled();
+  });
+});
+```
+
+## Rule: Testing Custom Hooks with TypeScript
+
+Test custom React hooks with proper TypeScript types.
+
+```tsx
+// useCounter.ts
+import { useState, useCallback } from 'react';
+
+export interface UseCounterReturn {
+  count: number;
+  increment: () => void;
+  decrement: () => void;
+  reset: () => void;
+}
+
+export function useCounter(initialValue = 0): UseCounterReturn {
+  const [count, setCount] = useState(initialValue);
+  
+  const increment = useCallback(() => setCount(c => c + 1), []);
+  const decrement = useCallback(() => setCount(c => c - 1), []);
+  const reset = useCallback(() => setCount(initialValue), [initialValue]);
+  
+  return { count, increment, decrement, reset };
+}
+
+// useCounter.test.ts
+import { renderHook, act } from '@testing-library/react-hooks';
+import { useCounter, UseCounterReturn } from './useCounter';
+
+describe('useCounter hook', () => {
+  test('initializes with default value', () => {
+    const { result } = renderHook(() => useCounter());
+    
+    // TypeScript knows the structure of the result
+    expect(result.current.count).toBe(0);
+  });
+  
+  test('initializes with provided value', () => {
+    const { result } = renderHook(() => useCounter(10));
+    
+    expect(result.current.count).toBe(10);
+  });
+  
+  test('increments the counter', () => {
+    const { result } = renderHook(() => useCounter());
+    
+    act(() => {
+      result.current.increment();
+    });
+    
+    expect(result.current.count).toBe(1);
+  });
+  
+  test('decrements the counter', () => {
+    const { result } = renderHook(() => useCounter(5));
+    
+    act(() => {
+      result.current.decrement();
+    });
+    
+    expect(result.current.count).toBe(4);
+  });
+  
+  test('resets the counter', () => {
+    const { result } = renderHook(() => useCounter(3));
+    
+    act(() => {
+      result.current.increment();
+      result.current.increment();
+    });
+    
+    expect(result.current.count).toBe(5);
+    
+    act(() => {
+      result.current.reset();
+    });
+    
+    expect(result.current.count).toBe(3);
+  });
+});
+```

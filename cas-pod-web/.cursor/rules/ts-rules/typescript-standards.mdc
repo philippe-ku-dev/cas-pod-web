@@ -1,0 +1,251 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # TypeScript Coding Standards and Best Practices
+
+This rule file enforces TypeScript coding standards based on official TypeScript documentation.
+
+## Rule: Strict Type Checking
+
+Always configure TypeScript with strict type checking enabled in tsconfig.json.
+
+```json
+{
+  "compilerOptions": {
+    "strict": true
+  }
+}
+```
+
+## Rule: Prefer Type Annotations for Public APIs
+
+Public methods, functions, and properties should have explicit type annotations.
+
+```typescript
+// Bad
+function calculateTotal(prices) {
+  return prices.reduce((total, price) => total + price, 0);
+}
+
+// Good
+function calculateTotal(prices: number[]): number {
+  return prices.reduce((total, price) => total + price, 0);
+}
+```
+
+## Rule: Use Union Types for Values with Multiple Types
+
+```typescript
+// Bad
+function formatInput(input: any): string {
+  return input.toString();
+}
+
+// Good
+function formatInput(input: string | number): string {
+  return input.toString();
+}
+```
+
+## Rule: Leverage TypeScript's Type Inference
+
+Don't add type annotations when TypeScript can infer the type.
+
+```typescript
+// Unnecessary
+const numbers: number[] = [1, 2, 3];
+
+// Better
+const numbers = [1, 2, 3]; // TypeScript infers number[]
+```
+
+## Rule: Use Interfaces for Object Shapes
+
+Use interfaces to define object shapes, especially for public APIs and shared types.
+
+```typescript
+// Define interface
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  active?: boolean;
+}
+
+// Use interface in function signatures
+function getUserById(id: number): User | undefined {
+  // implementation
+}
+```
+
+## Rule: Use Type Aliases for Complex Types
+
+Use type aliases to create reusable complex types.
+
+```typescript
+type Coordinates = [number, number];
+type Status = 'pending' | 'processing' | 'completed' | 'failed';
+type UserRecord = Record<string, User>;
+```
+
+## Rule: Avoid `any` Type
+
+Avoid using the `any` type whenever possible. Prefer `unknown` for values of unknown types.
+
+```typescript
+// Bad
+function processInput(input: any): any {
+  return input.value;
+}
+
+// Good
+function processInput(input: unknown): unknown {
+  if (typeof input === 'object' && input !== null && 'value' in input) {
+    return (input as { value: unknown }).value;
+  }
+  return undefined;
+}
+```
+
+## Rule: Use Generics for Reusable Components
+
+```typescript
+// Generic function
+function getFirstItem<T>(array: T[]): T | undefined {
+  return array.length > 0 ? array[0] : undefined;
+}
+
+// Generic interface
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  message: string;
+}
+```
+
+## Rule: Discriminated Unions for Complex State Management
+
+```typescript
+interface RequestPending {
+  status: 'pending';
+}
+
+interface RequestSuccess<T> {
+  status: 'success';
+  data: T;
+}
+
+interface RequestError {
+  status: 'error';
+  error: string;
+}
+
+type RequestState<T> = RequestPending | RequestSuccess<T> | RequestError;
+```
+
+## Rule: Proper Error Handling with Type Guards
+
+```typescript
+function isError(obj: unknown): obj is Error {
+  return obj instanceof Error;
+}
+
+function processResponse(response: unknown): string {
+  try {
+    // process response
+    return 'Success';
+  } catch (error) {
+    if (isError(error)) {
+      return `Error: ${error.message}`;
+    }
+    return 'Unknown error occurred';
+  }
+}
+```
+
+## Rule: Use Readonly for Immutable Data
+
+```typescript
+interface Config {
+  readonly apiUrl: string;
+  readonly timeout: number;
+}
+
+function processConfig(config: Readonly<Config>): void {
+  // Cannot modify config
+}
+```
+
+## Rule: Use Optional Properties Instead of Undefined Values
+
+```typescript
+// Bad
+interface UserSettings {
+  theme: string | undefined;
+  notifications: boolean | undefined;
+}
+
+// Good
+interface UserSettings {
+  theme?: string;
+  notifications?: boolean;
+}
+```
+
+## Rule: Follow Consistent Naming Conventions
+
+- Interfaces: PascalCase, prefixed with 'I' (optional)
+- Type aliases: PascalCase
+- Enum members: PascalCase
+- Functions: camelCase
+- Variables: camelCase
+- Constants: UPPER_SNAKE_CASE or camelCase
+- Private properties: camelCase (optionally prefixed with underscore)
+
+## Rule: Document Public APIs with JSDoc
+
+```typescript
+/**
+ * Calculates the total cost including tax
+ * @param price - The base price
+ * @param taxRate - The tax rate as a decimal (e.g., 0.07 for 7%)
+ * @returns The total price with tax
+ */
+function calculateTotalWithTax(price: number, taxRate: number): number {
+  return price * (1 + taxRate);
+}
+```
+
+## Rule: Use Module Augmentation Appropriately
+
+```typescript
+// Augmenting an external module
+declare module 'external-module' {
+  export interface ExternalInterface {
+    newProperty: string;
+  }
+}
+```
+
+## Rule: Prefer Mapped and Conditional Types for Type Transformations
+
+```typescript
+type Nullable<T> = { [P in keyof T]: T[P] | null };
+type ReadonlyUser = Readonly<User>;
+type PartialConfig = Partial<Config>;
+```
+
+## Rule: Avoid Type Assertion When Possible
+
+```typescript
+// Bad
+const element = document.getElementById('root') as HTMLElement;
+
+// Good
+const element = document.getElementById('root');
+if (element) {
+  // element is HTMLElement | null
+}
+```

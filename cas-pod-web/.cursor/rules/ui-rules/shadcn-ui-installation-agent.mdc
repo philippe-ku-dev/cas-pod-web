@@ -1,0 +1,63 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Guidance for installing and configuring Shadcn UI in projects
+globs: 
+alwaysApply: false
+---
+
+# Shadcn UI Installation
+
+## Context
+
+- Apply when installing or configuring Shadcn UI
+- Required when setting up new projects with Shadcn UI
+- Helps ensure proper Shadcn UI implementation
+
+## Critical Rules
+
+- Use the appropriate framework-specific installation method (Next.js, Vite, etc.)
+- Configure `components.json` at the project root with proper settings
+- Maintain TypeScript usage with Shadcn UI unless explicitly opted out
+- Setup appropriate import aliases in tsconfig.json or jsconfig.json
+- Include Tailwind CSS configuration with proper color themes
+- Never assume Shadcn UI is already installed - verify first
+
+## Examples
+
+<example>
+// Installing Shadcn UI in Next.js project
+npx shadcn-ui@latest init
+
+// Properly configured components.json
+{
+  "style": "default",
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "app/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true
+  },
+  "rsc": true,
+  "tsx": true,
+  "aliases": {
+    "utils": "@/lib/utils",
+    "components": "@/components"
+  }
+}
+</example>
+
+<example type="invalid">
+// Missing proper configuration
+npx shadcn-ui@latest init
+
+// Incomplete components.json
+{
+  "style": "default"
+}
+
+// Assuming Shadcn UI works without tailwind configuration
+</example>

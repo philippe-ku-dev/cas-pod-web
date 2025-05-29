@@ -1,0 +1,66 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ ---
+description: Guidelines for implementing and using Shadcn UI components in projects
+globs: 
+alwaysApply: false
+---
+
+# Shadcn UI Components
+
+## Context
+
+- Apply when working with Shadcn UI components
+- Used when adding or modifying Shadcn UI components in a project
+- Ensures consistent component implementation
+
+## Critical Rules
+
+- Use the CLI to add components: `npx shadcn-ui@latest add [component-name]`
+- Never modify the original component source code, create variants instead
+- Customize components using the cn utility function and Tailwind CSS
+- Follow component composition patterns (e.g., Button.Root, Button.Icon)
+- Keep component imports consistent using defined aliases
+- Always check component API documentation before implementation
+- Import components from the local components directory, not from "shadcn/ui"
+
+## Examples
+
+<example>
+// Adding a button component
+npx shadcn-ui@latest add button
+
+// Proper component usage with variants
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+
+// Using with className for custom styling
+<Button 
+  variant="outline"
+  className={cn(
+    "rounded-full bg-primary text-primary-foreground",
+    className
+  )}
+>
+  Click me
+</Button>
+</example>
+
+<example type="invalid">
+// Incorrect - importing directly from shadcn/ui
+import { Button } from "shadcn/ui"
+
+// Incorrect - modifying original component source
+// Editing /components/ui/button.tsx directly
+
+// Incorrect - not using cn utility for class merging
+<Button 
+  variant="outline"
+  className="rounded-full bg-primary text-primary-foreground"
+>
+  Click me
+</Button>
+</example>

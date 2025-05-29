@@ -1,0 +1,265 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # TypeScript Project Setup and Configuration
+
+This rule file provides guidelines for TypeScript project setup and configuration based on official TypeScript documentation.
+
+## Rule: Recommended tsconfig.json Setup
+
+Every TypeScript project should have a properly configured tsconfig.json file.
+
+```json
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "esnext",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "build", "dist"]
+}
+```
+
+## Rule: Project Structure
+
+Maintain a consistent project structure:
+
+```
+/src              # Source files
+  /components     # UI components
+  /models         # Type definitions
+  /services       # Services/API layer
+  /utils          # Utility functions
+/tests            # Test files
+/public           # Static assets
+```
+
+## Rule: Module Organization
+
+Use ES modules for cleaner imports and exports.
+
+```typescript
+// Exporting
+export interface User { ... }
+export function getUser() { ... }
+
+// Importing
+import { User, getUser } from './user';
+```
+
+## Rule: Barrel Files for Clean Imports
+
+Use barrel files (index.ts) to simplify imports.
+
+```typescript
+// src/utils/index.ts
+export * from './string-utils';
+export * from './number-utils';
+export * from './date-utils';
+
+// Importing elsewhere
+import { formatDate, parseDate } from './utils';
+```
+
+## Rule: TypeScript Declaration Files
+
+Use declaration files (*.d.ts) for:
+- Global type definitions
+- Module augmentation
+- External libraries without types
+
+```typescript
+// global.d.ts
+declare global {
+  interface Window {
+    analytics: Analytics;
+  }
+}
+
+// env.d.ts
+declare namespace NodeJS {
+  interface ProcessEnv {
+    NODE_ENV: 'development' | 'production' | 'test';
+    API_URL: string;
+  }
+}
+```
+
+## Rule: Environment-Specific Configuration
+
+Use environment-specific configurations with conditional compilation.
+
+```typescript
+// config.ts
+export const config = {
+  apiUrl: process.env.NODE_ENV === 'production'
+    ? 'https://api.example.com'
+    : 'http://localhost:3000',
+  debug: process.env.NODE_ENV !== 'production'
+};
+```
+
+## Rule: Type Definitions for Third-Party Libraries
+
+Always include type definitions for third-party libraries.
+
+```json
+// package.json
+{
+  "dependencies": {
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.178"
+  }
+}
+```
+
+## Rule: Strict Null Checks
+
+Always enable strictNullChecks in tsconfig.json.
+
+```json
+{
+  "compilerOptions": {
+    "strictNullChecks": true
+  }
+}
+```
+
+## Rule: Path Aliases
+
+Use path aliases for cleaner imports from deep directory structures.
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@components/*": ["src/components/*"],
+      "@utils/*": ["src/utils/*"],
+      "@services/*": ["src/services/*"],
+      "@models/*": ["src/models/*"]
+    }
+  }
+}
+```
+
+## Rule: Source Maps for Debugging
+
+Enable source maps in development for better debugging.
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "sourceMap": true
+  }
+}
+```
+
+## Rule: Incremental Compilation
+
+Use incremental compilation for faster builds.
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "./buildcache/tsbuildinfo"
+  }
+}
+```
+
+## Rule: Linting Configuration
+
+Use ESLint with TypeScript plugin for linting.
+
+```json
+// .eslintrc.json
+{
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/explicit-module-boundary-types": "warn"
+  }
+}
+```
+
+## Rule: Testing Setup
+
+Use Jest with TypeScript for testing.
+
+```json
+// jest.config.js
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1'
+  }
+};
+```
+
+## Rule: Version Control Configuration
+
+Configure .gitignore for TypeScript projects.
+
+```
+# .gitignore
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env
+*.tsbuildinfo
+```
+
+## Rule: Type-Safe API Requests
+
+Use typed API clients for type-safe API requests.
+
+```typescript
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  message: string;
+}
+
+async function fetchData<T>(url: string): Promise<ApiResponse<T>> {
+  const response = await fetch(url);
+  return await response.json();
+}
+
+// Usage
+interface User {
+  id: number;
+  name: string;
+}
+
+const result = await fetchData<User[]>('/api/users');
+// result.data is typed as User[]
+```

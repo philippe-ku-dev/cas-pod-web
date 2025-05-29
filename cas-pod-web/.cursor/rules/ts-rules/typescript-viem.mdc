@@ -1,0 +1,403 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+ # TypeScript Rules for Viem
+
+This rule file provides guidelines for using TypeScript with Viem based on the official Viem documentation.
+
+## Rule: Client Setup
+
+Set up clients with proper typing.
+
+```typescript
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+// Properly typed client setup
+const client = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+```
+
+## Rule: Transport Configuration
+
+Use typed transports with appropriate options.
+
+```typescript
+import { http, webSocket } from 'viem'
+
+// HTTP transport with typed options
+const httpTransport = http({
+  batch?: true,
+  fetchOptions?: {
+    headers: {
+      'Authorization': `Bearer ${API_KEY}`
+    }
+  },
+  retryCount: 3,
+  retryDelay: 1000
+})
+
+// WebSocket transport with typed options
+const wsTransport = webSocket({
+  key?: 'custom-key',
+  name?: 'custom-connection',
+  retryCount: 5,
+  retryDelay: 1000
+})
+```
+
+## Rule: Type-Safe Actions
+
+Ensure type safety when consuming actions.
+
+```typescript
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const client = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+
+// Type-safe action consumption
+const blockNumber: bigint = await client.getBlockNumber()
+const balance: bigint = await client.getBalance({
+  address: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e'
+})
+```
+
+## Rule: Contract Interaction
+
+Use proper typing for contract interactions.
+
+```typescript
+import { createPublicClient, http, parseAbi } from 'viem'
+import { mainnet } from 'viem/chains'
+
+// Properly typed ABI
+const abi = parseAbi([
+  'function balanceOf(address owner) view returns (uint256)',
+  'function transfer(address to, uint256 amount) returns (bool)',
+  'event Transfer(address indexed from, address indexed to, uint256 amount)'
+] as const)
+
+// Typed contract instance
+const client = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+
+// Typed contract read
+const balance = await client.readContract({
+  address: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e',
+  abi,
+  functionName: 'balanceOf',
+  args: ['0xA0Cf798816D4b9b9866b5330EEa46a18382f251e']
+})
+```
+
+## Rule: Wallet Client Setup
+
+Use proper typing for wallet clients.
+
+```typescript
+import { createWalletClient, custom } from 'viem'
+import { mainnet } from 'viem/chains'
+
+// Typed wallet client with injected provider
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: custom(window.ethereum)
+})
+
+// Typed account retrieval
+const [address] = await walletClient.getAddresses()
+```
+
+## Rule: Type-Safe Transactions
+
+Define transaction types properly.
+
+```typescript
+import { createWalletClient, custom } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: custom(window.ethereum)
+})
+
+// Typed transaction
+const hash = await walletClient.sendTransaction({
+  account: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e',
+  to: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  value: parseEther('0.1')
+})
+```
+
+## Rule: Types for Contract Writes
+
+Use proper typing for contract writes.
+
+```typescript
+import { createWalletClient, custom, parseAbi } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: custom(window.ethereum)
+})
+
+// Properly typed ABI
+const abi = parseAbi([
+  'function transfer(address to, uint256 amount) returns (bool)'
+] as const)
+
+// Typed contract write
+const hash = await walletClient.writeContract({
+  address: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e',
+  abi,
+  functionName: 'transfer',
+  args: ['0x70997970C51812dc3A010C7d01b50e0d17dc79C8', parseEther('1')]
+})
+```
+
+## Rule: Event Handling
+
+Use typed event listeners.
+
+```typescript
+import { createPublicClient, http, parseAbiItem } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const client = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+
+// Typed event definition
+const transferEvent = parseAbiItem(
+  'event Transfer(address indexed from, address indexed to, uint256 amount)'
+)
+
+// Typed event watching
+const unwatch = client.watchEvent({
+  address: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e',
+  event: transferEvent,
+  onLogs: (logs) => {
+    // logs are properly typed
+    logs.forEach(log => {
+      const { from, to, amount } = log.args
+      console.log(`Transfer: ${from} -> ${to}: ${amount}`)
+    })
+  }
+})
+```
+
+## Rule: Error Handling
+
+Use viem's typed errors for robust error handling.
+
+```typescript
+import { 
+  createPublicClient, 
+  http, 
+  ContractFunctionExecutionError, 
+  TransactionExecutionError 
+} from 'viem'
+import { mainnet } from 'viem/chains'
+
+const client = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+
+// Type-safe error handling
+try {
+  const result = await client.readContract({
+    address: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e',
+    abi,
+    functionName: 'balanceOf',
+    args: ['0xA0Cf798816D4b9b9866b5330EEa46a18382f251e']
+  })
+} catch (error) {
+  if (error instanceof ContractFunctionExecutionError) {
+    // Handle contract execution errors
+    console.error('Contract error:', error.details)
+  } else if (error instanceof TransactionExecutionError) {
+    // Handle transaction errors
+    console.error('Transaction error:', error.details)
+  } else {
+    // Handle other errors
+    console.error('Unknown error:', error)
+  }
+}
+```
+
+## Rule: Data Serialization
+
+Use proper types for data serialization and parsing.
+
+```typescript
+import { parseEther, formatEther, parseGwei, formatGwei } from 'viem'
+
+// Typed ether conversion
+const valueInWei: bigint = parseEther('1.0') // 1 ether to wei (1000000000000000000n)
+const valueInEther: string = formatEther(valueInWei) // wei to ether ('1.0')
+
+// Typed gwei conversion
+const valueInWeiFromGwei: bigint = parseGwei('1.0') // 1 gwei to wei (1000000000n)
+const valueInGwei: string = formatGwei(valueInWeiFromGwei) // wei to gwei ('1.0')
+```
+
+## Rule: Chain Management
+
+Use typed chain definitions.
+
+```typescript
+import { createPublicClient, http, defineChain } from 'viem'
+
+// Define typed custom chain
+const customChain = defineChain({
+  id: 123456,
+  name: 'Custom Chain',
+  network: 'custom',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Custom Ether',
+    symbol: 'CETH',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://custom-chain.example/rpc'],
+      webSocket: ['wss://custom-chain.example/ws'],
+    },
+    public: {
+      http: ['https://custom-chain.public.example/rpc'],
+      webSocket: ['wss://custom-chain.public.example/ws'],
+    },
+  },
+  blockExplorers: {
+    default: { name: 'Explorer', url: 'https://explorer.custom-chain.example' }
+  }
+})
+
+// Use the custom chain
+const client = createPublicClient({
+  chain: customChain,
+  transport: http()
+})
+```
+
+## Rule: Advanced ABIs
+
+Use TypeScript to enhance ABI type safety.
+
+```typescript
+import { createPublicClient, http } from 'viem'
+import { wagmiAbi } from './abis/wagmi'
+import { mainnet } from 'viem/chains'
+
+// Import typed ABI from a file
+const client = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+
+// Typed usage with imported ABI
+const result = await client.readContract({
+  address: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e', 
+  abi: wagmiAbi,
+  functionName: 'balanceOf', // TypeScript checks this against the ABI
+  args: ['0xA0Cf798816D4b9b9866b5330EEa46a18382f251e'] // TypeScript validates args
+})
+```
+
+## Rule: Testing with Typed Test Clients
+
+Use typed test clients for unit testing.
+
+```typescript
+import { createTestClient, http, TestClient, Chain } from 'viem'
+import { foundry } from 'viem/chains'
+
+// Typed test client
+const testClient: TestClient<'http', Chain> = createTestClient({
+  chain: foundry,
+  mode: 'anvil',
+  transport: http()
+})
+
+// Typed test interactions
+const block = await testClient.getBlock()
+const accounts = await testClient.getAddresses()
+
+// Set typed storage value
+await testClient.setStorageAt({
+  address: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e',
+  index: 0,
+  value: '0x0000000000000000000000000000000000000000000000000000000000000069'
+})
+```
+
+## Rule: Blob Transactions (EIP-4844)
+
+Use proper types for blob transactions.
+
+```typescript
+import { createWalletClient, custom } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: custom(window.ethereum)
+})
+
+// Typed blob transaction
+const hash = await walletClient.sendTransaction({
+  account: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e',
+  to: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  value: parseEther('0.1'),
+  // Blob transaction fields
+  maxFeePerBlobGas: 1000000000n,
+  blobVersionedHashes: [
+    '0x...',
+    '0x...'
+  ]
+})
+```
+
+## Rule: ENS Integration
+
+Use typed ENS functions.
+
+```typescript
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const client = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+
+// Typed ENS resolution
+const ensAddress = await client.getEnsAddress({
+  name: 'viem.eth'
+})
+
+const ensName = await client.getEnsName({
+  address: '0xA0Cf798816D4b9b9866b5330EEa46a18382f251e'
+})
+
+const ensAvatar = await client.getEnsAvatar({
+  name: 'viem.eth'
+})
+
+const ensResolver = await client.getEnsResolver({
+  name: 'viem.eth'
+})
+```
