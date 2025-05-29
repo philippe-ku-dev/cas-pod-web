@@ -1,14 +1,17 @@
 'use client'
 
-import { useAccount } from 'wagmi'
+import { useState, useEffect } from 'react'
+import { useAccount, useReadContract } from 'wagmi'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { CONTRACTS, accessControlAbi } from '@/lib/contracts'
+import { useAllUniversities, useHasUniversityRole } from '@/hooks/useContracts'
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount()
-
+  
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -153,38 +156,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Quick Stats */}
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Quick Stats</h2>
-          <div className="grid md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-2xl font-bold text-blue-600">-</div>
-                <p className="text-sm text-gray-600">Total Diplomas Issued</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-2xl font-bold text-green-600">-</div>
-                <p className="text-sm text-gray-600">Verified Universities</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-2xl font-bold text-purple-600">-</div>
-                <p className="text-sm text-gray-600">NFTs Minted</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-2xl font-bold text-orange-600">-</div>
-                <p className="text-sm text-gray-600">Verifications</p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
       </div>
     </div>
   )
-} 
+}

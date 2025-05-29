@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,16 +9,59 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CONTRACTS, registryAbi, diplomaAbi } from '@/lib/contracts'
+import { CONTRACTS, registryAbi, diplomaAbi, accessControlAbi } from '@/lib/contracts'
 import { useHasUniversityRole, useUniversityInfo } from '@/hooks/useContracts'
 import { formatAddress } from '@/lib/utils'
 import Link from 'next/link'
 
 export default function UniversityDashboardPage() {
   const { address, isConnected } = useAccount()
-  const { data: universityInfo, isLoading: loadingInfo } = useUniversityInfo(address)
-  const { data: hasUniversityRole, isLoading: loadingRole } = useHasUniversityRole(address)
+  const { data: universityInfo, isLoading: loadingInfo, refetch: refetchInfo } = useUniversityInfo(address)
+  const { data: hasUniversityRole, isLoading: loadingRole, refetch: refetchRole } = useHasUniversityRole(address)
   const [showRegistrationForm, setShowRegistrationForm] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Get the university role directly from the contract
+  const { data: universityRole } = useReadContract({
+    address: CONTRACTS.ACCESS_CONTROL,
+    abi: accessControlAbi,
+    functionName: 'UNIVERSITY_ROLE',
+  })
+  
+  // Direct role check
+  const { data: directRoleCheck, refetch: refetchDirectRole } = useReadContract({
+    address: CONTRACTS.ACCESS_CONTROL,
+    abi: accessControlAbi,
+    functionName: 'hasRole',
+    args: universityRole && address ? [universityRole, address] : undefined,
+    query: {
+      enabled: !!universityRole && !!address,
+    },
+  })
+
+  // Log role status for debugging
+  useEffect(() => {
+    console.log('University Info:', universityInfo)
+    console.log('Has University Role:', hasUniversityRole)
+    console.log('Direct Role Check:', directRoleCheck)
+    console.log('University Role:', universityRole)
+  }, [universityInfo, hasUniversityRole, directRoleCheck, universityRole])
+
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([
+        refetchInfo(),
+        refetchRole(),
+        refetchDirectRole()
+      ])
+    } catch (error) {
+      console.error('Error refreshing data:', error)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   if (!isConnected) {
     return (
@@ -40,7 +83,7 @@ export default function UniversityDashboardPage() {
   }
 
   const isRegistered = universityInfo?.[3] // isRegistered field
-  const isApproved = universityInfo?.[2] // isApproved field
+  const isApproved = directRoleCheck // Use the direct role check
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -60,10 +103,45 @@ export default function UniversityDashboardPage() {
         {/* University Status */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>University Status</CardTitle>
-            <CardDescription>
-              Your institution's registration and approval status
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>University Status</CardTitle>
+                <CardDescription>
+                  Your institution's registration and approval status
+                </CardDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRefresh}
+                disabled={refreshing || loadingInfo || loadingRole}
+              >
+                {refreshing ? (
+                  <>
+                    <span className="animate-spin mr-1">⟳</span> 
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      width="16" 
+                      height="16" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      className="mr-1"
+                    >
+                      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/>
+                    </svg>
+                    Refresh Status
+                  </>
+                )}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingInfo || loadingRole ? (
@@ -126,6 +204,19 @@ export default function UniversityDashboardPage() {
                       <div className="font-medium mb-1">Approval Pending</div>
                       Your university registration is pending approval from an administrator. 
                       You cannot issue diplomas until approved.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {universityInfo?.[2] && !hasUniversityRole && (
+                  <Alert className="border-blue-200 bg-blue-50 mt-4">
+                    <svg className="h-4 w-4 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <AlertDescription className="text-blue-800">
+                      <div className="font-medium mb-1">Role Assignment In Progress</div>
+                      Your university has been approved in the registry, but the university role is still being assigned.
+                      This process should complete shortly. Please try refreshing the page in a few moments.
                     </AlertDescription>
                   </Alert>
                 )}

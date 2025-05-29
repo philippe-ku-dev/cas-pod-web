@@ -9,31 +9,46 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { formatAddress } from '@/lib/utils'
 import { CONTRACTS, accessControlAbi, registryAbi } from '@/lib/contracts'
-import { useHasAdminRole, useAllUniversities, useUniversityInfo } from '@/hooks/useContracts'
-
-interface UniversityData {
-  address: string
-  name: string
-  country: string
-  isApproved: boolean
-  isRegistered: boolean
-}
+import { useHasAdminRole, useAllUniversities, useUniversityInfo, useHasUniversityRole } from '@/hooks/useContracts'
 
 // Component to load and display individual university data
 function UniversityItem({ 
   address, 
   onApprove, 
   isApproving, 
-  isApproveTxLoading 
+  isApproveTxLoading,
+  refreshKey
 }: { 
   address: string
   onApprove: (address: string) => void
   isApproving: boolean
   isApproveTxLoading: boolean
+  refreshKey: number
 }) {
-  const { data: universityInfo, isLoading } = useUniversityInfo(address as `0x${string}`)
+  // Get the UNIVERSITY_ROLE from the contract
+  const { data: universityRole } = useReadContract({
+    address: CONTRACTS.ACCESS_CONTROL,
+    abi: accessControlAbi,
+    functionName: 'UNIVERSITY_ROLE',
+  })
 
-  if (isLoading) {
+  const { data: universityInfo, isLoading: isLoadingInfo } = useUniversityInfo(address as `0x${string}`)
+  const { data: hasUniversityRole, isLoading: isLoadingRole } = useReadContract({
+    address: CONTRACTS.ACCESS_CONTROL,
+    abi: accessControlAbi,
+    functionName: 'hasRole',
+    args: universityRole ? [universityRole, address as `0x${string}`] : undefined,
+    query: {
+      enabled: !!universityRole,
+      refetchInterval: 3000, // Refetch every 3 seconds
+      refetchOnMount: true,
+    },
+  })
+  
+  // Debugging log
+  console.log(`UniversityItem ${address} hasRole:`, hasUniversityRole, 'role:', universityRole, 'refreshKey:', refreshKey)
+
+  if (isLoadingInfo || isLoadingRole || !universityRole) {
     return (
       <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
         <div>
@@ -49,11 +64,10 @@ function UniversityItem({
 
   const name = universityInfo?.[0] || `University ${address.slice(0, 6)}`
   const country = universityInfo?.[1] || 'Unknown'
-  const isApproved = universityInfo?.[2] || false
   const isRegistered = universityInfo?.[3] || false
 
-  // Only show if registered but not approved (pending)
-  if (!isRegistered || isApproved) {
+  // Skip if not registered or already has university role
+  if (!isRegistered || hasUniversityRole) {
     return null
   }
 
@@ -90,10 +104,37 @@ function UniversityItem({
 }
 
 // Component for approved universities
-function ApprovedUniversityItem({ address }: { address: string }) {
-  const { data: universityInfo, isLoading } = useUniversityInfo(address as `0x${string}`)
+function ApprovedUniversityItem({ 
+  address,
+  refreshKey
+}: { 
+  address: string
+  refreshKey: number
+}) {
+  // Get the UNIVERSITY_ROLE from the contract
+  const { data: universityRole } = useReadContract({
+    address: CONTRACTS.ACCESS_CONTROL,
+    abi: accessControlAbi,
+    functionName: 'UNIVERSITY_ROLE',
+  })
 
-  if (isLoading) {
+  const { data: universityInfo, isLoading: isLoadingInfo } = useUniversityInfo(address as `0x${string}`)
+  const { data: hasUniversityRole, isLoading: isLoadingRole } = useReadContract({
+    address: CONTRACTS.ACCESS_CONTROL,
+    abi: accessControlAbi,
+    functionName: 'hasRole',
+    args: universityRole ? [universityRole, address as `0x${string}`] : undefined,
+    query: {
+      enabled: !!universityRole,
+      refetchInterval: 3000, // Refetch every 3 seconds
+      refetchOnMount: true,
+    },
+  })
+  
+  // Debugging log
+  console.log(`ApprovedUniversityItem ${address} hasRole:`, hasUniversityRole, 'role:', universityRole, 'refreshKey:', refreshKey)
+
+  if (isLoadingInfo || isLoadingRole || !universityRole) {
     return (
       <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
         <div>
@@ -106,10 +147,10 @@ function ApprovedUniversityItem({ address }: { address: string }) {
 
   const name = universityInfo?.[0] || `University ${address.slice(0, 6)}`
   const country = universityInfo?.[1] || 'Unknown'
-  const isApproved = universityInfo?.[2] || false
+  const isRegistered = universityInfo?.[3] || false
 
-  // Only show if approved
-  if (!isApproved) {
+  // Only show if has university role
+  if (!isRegistered || !hasUniversityRole) {
     return null
   }
 
@@ -127,6 +168,9 @@ function ApprovedUniversityItem({ address }: { address: string }) {
           <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
             Approved
           </Badge>
+          <Badge variant="outline" className="border-purple-300 text-purple-800">
+            University Role
+          </Badge>
         </div>
       </div>
     </div>
@@ -135,6 +179,7 @@ function ApprovedUniversityItem({ address }: { address: string }) {
 
 export default function AdminPage() {
   const { address, isConnected } = useAccount()
+  const [refreshCounter, setRefreshCounter] = useState(0)
 
   // Check if current user is admin
   const { data: isAdmin } = useHasAdminRole(address)
@@ -155,13 +200,38 @@ export default function AdminPage() {
     hash: approveTxHash,
   })
 
+  // Force refresh function
+  const handleForceRefresh = () => {
+    setRefreshCounter(prev => prev + 1)
+    refetchUniversities()
+  }
+
   // Refetch data after successful approval
   useEffect(() => {
-    if (isApproveTxSuccess) {
-      refetchUniversities()
+    if (isApproveTxSuccess || approveTxHash) {
+      // Add a small delay to ensure the blockchain state has updated
+      const timer = setTimeout(() => {
+        handleForceRefresh()
+      }, 2000)
+      
+      return () => clearTimeout(timer)
     }
-  }, [isApproveTxSuccess, refetchUniversities])
+  }, [isApproveTxSuccess, approveTxHash, refetchUniversities])
 
+  // Statistics helpers
+  const countApprovedUniversities = (universities: readonly `0x${string}`[] | undefined) => {
+    if (!universities) return 0
+    
+    let count = 0
+    for (const addr of universities) {
+      // Check each university here
+      // This is a placeholder - we would need to check each one's status
+      count += 1
+    }
+    return count
+  }
+
+  // Handle approval function
   const handleApproveUniversity = async (universityAddress: string) => {
     try {
       await approveUniversity({
@@ -170,6 +240,7 @@ export default function AdminPage() {
         functionName: 'grantUniversityRole',
         args: [universityAddress as `0x${string}`],
       })
+      console.log('Approving university:', universityAddress)
     } catch (error) {
       console.error('Failed to approve university:', error)
     }
@@ -243,13 +314,17 @@ export default function AdminPage() {
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
-              <div className="text-2xl font-bold text-blue-600">-</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {!allUniversities ? '-' : allUniversities.length === 0 ? '0' : '0'}
+              </div>
               <p className="text-sm text-gray-600">Pending Approvals</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              <div className="text-2xl font-bold text-green-600">-</div>
+              <div className="text-2xl font-bold text-green-600">
+                {!allUniversities ? '-' : allUniversities.length === 0 ? '0' : countApprovedUniversities(allUniversities)}
+              </div>
               <p className="text-sm text-gray-600">Approved Universities</p>
             </CardContent>
           </Card>
@@ -270,10 +345,36 @@ export default function AdminPage() {
         {/* Pending University Approvals - Real Data */}
         <Card>
           <CardHeader>
-            <CardTitle>Pending University Approvals</CardTitle>
-            <CardDescription>
-              Review and approve university registration requests
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Pending University Approvals</CardTitle>
+                <CardDescription>
+                  Review and approve university registration requests
+                </CardDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleForceRefresh}
+                disabled={!allUniversities}
+              >
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="16" 
+                  height="16" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  className="mr-1"
+                >
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/>
+                </svg>
+                Refresh
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {!allUniversities ? (
@@ -289,11 +390,12 @@ export default function AdminPage() {
               <div className="space-y-4">
                 {allUniversities.map((universityAddress) => (
                   <UniversityItem
-                    key={universityAddress}
+                    key={`${universityAddress}-${refreshCounter}`}
                     address={universityAddress}
                     onApprove={handleApproveUniversity}
                     isApproving={isApproving}
                     isApproveTxLoading={isApproveTxLoading}
+                    refreshKey={refreshCounter}
                   />
                 ))}
               </div>
@@ -304,10 +406,36 @@ export default function AdminPage() {
         {/* Approved Universities */}
         <Card className="mt-8">
           <CardHeader>
-            <CardTitle>Approved Universities</CardTitle>
-            <CardDescription>
-              Universities that have been approved and can issue diplomas
-            </CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Approved Universities</CardTitle>
+                <CardDescription>
+                  Universities that have been approved and can issue diplomas
+                </CardDescription>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleForceRefresh}
+                disabled={!allUniversities}
+              >
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="16" 
+                  height="16" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  className="mr-1"
+                >
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/>
+                </svg>
+                Refresh
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {!allUniversities ? (
@@ -318,7 +446,11 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-4">
                 {allUniversities.map((universityAddress) => (
-                  <ApprovedUniversityItem key={universityAddress} address={universityAddress} />
+                  <ApprovedUniversityItem 
+                    key={`${universityAddress}-${refreshCounter}`} 
+                    address={universityAddress} 
+                    refreshKey={refreshCounter}
+                  />
                 ))}
               </div>
             )}

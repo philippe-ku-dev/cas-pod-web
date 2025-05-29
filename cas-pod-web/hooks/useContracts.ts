@@ -1,5 +1,9 @@
-import { useReadContract, useWriteContract } from 'wagmi'
+import { useReadContract, useWriteContract, useAccount } from 'wagmi'
 import { CONTRACTS, registryAbi, diplomaAbi, tokenAbi, accessControlAbi } from '@/lib/contracts'
+
+// Roles
+const UNIVERSITY_ROLE = '0xdc4648e77df7cf7ca17990f8bdb7abb3f73c222fea09da6c9bc6df7cbe9cef78' as const
+const ADMIN_ROLE = '0x0000000000000000000000000000000000000000000000000000000000000000' as const
 
 // Hook for reading university information
 export function useUniversityInfo(address: `0x${string}` | undefined) {
@@ -10,44 +14,47 @@ export function useUniversityInfo(address: `0x${string}` | undefined) {
     args: address ? [address] : undefined,
     query: {
       enabled: !!address,
+      staleTime: 10000, // Consider data stale after 10 seconds
+      gcTime: 30000, // Keep data in cache for garbage collection for 30 seconds
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
   })
 }
 
 // Hook for checking if an address has university role
 export function useHasUniversityRole(address: `0x${string}` | undefined) {
-  const { data: universityRole } = useReadContract({
-    address: CONTRACTS.ACCESS_CONTROL,
-    abi: accessControlAbi,
-    functionName: 'UNIVERSITY_ROLE',
-  })
-
   return useReadContract({
     address: CONTRACTS.ACCESS_CONTROL,
     abi: accessControlAbi,
     functionName: 'hasRole',
-    args: universityRole && address ? [universityRole, address] : undefined,
+    args: address ? [UNIVERSITY_ROLE, address] : undefined,
     query: {
-      enabled: !!(universityRole && address),
+      enabled: !!address,
+      staleTime: 5000,
+      gcTime: 30000,
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
   })
 }
 
 // Hook for checking if an address has admin role
 export function useHasAdminRole(address: `0x${string}` | undefined) {
-  const { data: adminRole } = useReadContract({
-    address: CONTRACTS.ACCESS_CONTROL,
-    abi: accessControlAbi,
-    functionName: 'ADMIN_ROLE',
-  })
-
   return useReadContract({
     address: CONTRACTS.ACCESS_CONTROL,
     abi: accessControlAbi,
     functionName: 'hasRole',
-    args: adminRole && address ? [adminRole, address] : undefined,
+    args: address ? [ADMIN_ROLE, address] : undefined,
     query: {
-      enabled: !!(adminRole && address),
+      enabled: !!address,
+      staleTime: 5000,
+      gcTime: 30000,
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
   })
 }
@@ -99,10 +106,5 @@ export function useGenerateDiploma() {
 
 // Hook for diploma minting
 export function useMintDiploma() {
-  return useWriteContract()
-}
-
-// Hook for university approval (admin only)
-export function useApproveUniversity() {
   return useWriteContract()
 } 
