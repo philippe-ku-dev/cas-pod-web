@@ -40,7 +40,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-4 gap-6">
           {/* Student Dashboard */}
           <Card>
             <CardHeader>
@@ -93,6 +93,34 @@ export default function DashboardPage() {
               </div>
               <Button className="w-full" asChild>
                 <Link href="/dashboard/university">University Portal</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Admin Dashboard */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                👨‍💼 Admin
+              </CardTitle>
+              <CardDescription>
+                Manage platform and approve universities
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">
+                  • Approve university registrations
+                </p>
+                <p className="text-sm text-gray-600">
+                  • Manage platform settings
+                </p>
+                <p className="text-sm text-gray-600">
+                  • View system analytics
+                </p>
+              </div>
+              <Button className="w-full" asChild>
+                <Link href="/dashboard/admin">Admin Portal</Link>
               </Button>
             </CardContent>
           </Card>
