@@ -206,6 +206,13 @@ export const tokenAbi = [
   },
   {
     type: 'function',
+    name: 'balanceOf',
+    inputs: [{ type: 'address', name: 'owner' }],
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     name: 'tokenURI',
     inputs: [{ type: 'uint256', name: 'tokenId' }],
     outputs: [{ type: 'string' }],

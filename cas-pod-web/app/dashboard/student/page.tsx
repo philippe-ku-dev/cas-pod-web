@@ -5,7 +5,7 @@ import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useStudentDiplomas, useMintDiploma } from '@/hooks/useContracts'
+import { useStudentDiplomas, useMintDiploma, useNFTBalance, useIsDiplomaMinted } from '@/hooks/useContracts'
 import { formatAddress } from '@/lib/utils'
 import { CONTRACTS, tokenAbi } from '@/lib/contracts'
 import Link from 'next/link'
@@ -14,6 +14,7 @@ import { useState } from 'react'
 export default function StudentDashboardPage() {
   const { address, isConnected } = useAccount()
   const { data: diplomas, isLoading, error } = useStudentDiplomas(address)
+  const { data: nftBalance, isLoading: isNFTLoading } = useNFTBalance(address)
 
   if (!isConnected) {
     return (
@@ -75,7 +76,7 @@ export default function StudentDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600 mb-2">
-                0
+                {isNFTLoading ? '...' : (nftBalance ? Number(nftBalance) : 0)}
               </div>
               <p className="text-sm text-gray-600">NFTs in your wallet</p>
             </CardContent>
@@ -180,8 +181,13 @@ function DiplomaCard({ diplomaId }: { diplomaId: string }) {
     error: mintError 
   } = useMintDiploma()
   
+  // Check if diploma is already minted
+  const { data: isMinted, isLoading: isMintedLoading } = useIsDiplomaMinted(diplomaId as `0x${string}`)
+  
   const [txHash, setTxHash] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [copyIdSuccess, setCopyIdSuccess] = useState(false)
+  const [copyLinkSuccess, setCopyLinkSuccess] = useState(false)
 
   const { isLoading: isMintTxLoading, isSuccess: isMintTxSuccess } = useWaitForTransactionReceipt({
     hash: txHash as `0x${string}` | undefined,
@@ -202,6 +208,34 @@ function DiplomaCard({ diplomaId }: { diplomaId: string }) {
     } catch (error: any) {
       console.error('Minting failed:', error)
       setLocalError(error.message || 'Minting failed. Please try again.')
+    }
+  }
+
+  const handleCopyDiplomaId = async () => {
+    try {
+      await navigator.clipboard.writeText(diplomaId)
+      setCopyIdSuccess(true)
+      setTimeout(() => setCopyIdSuccess(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy diploma ID:', err)
+      alert('Failed to copy. Please copy manually: ' + diplomaId)
+    }
+  }
+
+  const handleCopyVerificationLink = async () => {
+    try {
+      if (typeof window === 'undefined') {
+        alert('Verification link generation is not available')
+        return
+      }
+      
+      const verificationUrl = `${window.location.origin}/verify?id=${diplomaId}`
+      await navigator.clipboard.writeText(verificationUrl)
+      setCopyLinkSuccess(true)
+      setTimeout(() => setCopyLinkSuccess(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy verification link:', err)
+      alert('Failed to copy verification link.')
     }
   }
 
@@ -248,7 +282,19 @@ function DiplomaCard({ diplomaId }: { diplomaId: string }) {
 
       <div className="flex items-center justify-between">
         <div>
-          <h4 className="font-semibold text-gray-900">Diploma</h4>
+          <div className="flex items-center gap-2 mb-1">
+            <h4 className="font-semibold text-gray-900">Diploma</h4>
+            {isMinted && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                ✅ NFT Minted
+              </span>
+            )}
+            {isMintedLoading && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                🔄 Checking...
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-600 font-mono">
             {diplomaId.slice(0, 10)}...{diplomaId.slice(-8)}
           </p>
@@ -260,12 +306,57 @@ function DiplomaCard({ diplomaId }: { diplomaId: string }) {
           <Button 
             size="sm" 
             onClick={handleMintNFT}
-            disabled={isMinting || isMintTxLoading || isMintTxSuccess}
+            disabled={isMinting || isMintTxLoading || isMintTxSuccess || isMinted || isMintedLoading}
+            variant={isMinted ? "secondary" : "default"}
           >
-            {isMinting || isMintTxLoading ? 'Minting...' : isMintTxSuccess ? 'Minted!' : 'Mint NFT'}
+            {isMintedLoading ? 'Checking...' : 
+             isMinted ? '✅ Already Minted' :
+             isMinting || isMintTxLoading ? 'Minting...' : 
+             isMintTxSuccess ? 'Minted!' : 
+             'Mint NFT'}
           </Button>
         </div>
       </div>
+
+      <CardContent className="pt-4">
+        <div className="space-y-4">
+          {/* Diploma ID Section */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-sm text-gray-700">📜 Diploma ID</h4>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyDiplomaId}
+                className={copyIdSuccess ? 'text-green-600' : 'text-gray-500'}
+              >
+                {copyIdSuccess ? '✅ Copied!' : '📋 Copy ID'}
+              </Button>
+            </div>
+            <p className="font-mono text-xs text-gray-600 break-all">
+              {diplomaId}
+            </p>
+          </div>
+
+          {/* Verification Link Section */}
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-sm text-blue-700">🔗 Verification Link</h4>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyVerificationLink}
+                className={copyLinkSuccess ? 'text-green-600' : 'text-blue-600'}
+              >
+                {copyLinkSuccess ? '✅ Copied!' : '🔗 Copy Link'}
+              </Button>
+            </div>
+            <p className="text-xs text-blue-600">
+              Share this link to allow others to verify your diploma
+            </p>
+          </div>
+        </div>
+      </CardContent>
     </div>
   )
 } 

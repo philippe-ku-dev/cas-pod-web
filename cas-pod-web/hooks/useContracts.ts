@@ -81,6 +81,23 @@ export function useVerifyDiploma(diplomaId: `0x${string}` | undefined) {
     args: diplomaId ? [diplomaId] : undefined,
     query: {
       enabled: !!diplomaId,
+      staleTime: 60000, // Cache for 1 minute
+      gcTime: 300000, // Keep in cache for 5 minutes
+    },
+  })
+}
+
+// Hook for checking if a diploma is already minted (NFT exists)
+export function useIsDiplomaMinted(diplomaId: `0x${string}` | undefined) {
+  return useReadContract({
+    address: CONTRACTS.DIPLOMA,
+    abi: diplomaAbi,
+    functionName: 'isDiplomaMinted',
+    args: diplomaId ? [diplomaId] : undefined,
+    query: {
+      enabled: !!diplomaId,
+      staleTime: 30000,
+      gcTime: 300000,
     },
   })
 }
@@ -243,4 +260,19 @@ export function useMintDiploma() {
     isSuccess, 
     error 
   }
+}
+
+// Hook for getting user's NFT balance
+export function useNFTBalance(address: `0x${string}` | undefined) {
+  return useReadContract({
+    address: CONTRACTS.TOKEN,
+    abi: tokenAbi,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address,
+      staleTime: 30000,
+      gcTime: 300000,
+    },
+  })
 } 

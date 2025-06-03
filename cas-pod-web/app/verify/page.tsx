@@ -1,48 +1,197 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useReadContract } from 'wagmi'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { formatAddress } from '@/lib/utils'
+import { CONTRACTS, diplomaAbi, registryAbi } from '@/lib/contracts'
 
 export default function VerifyPage() {
+  const searchParams = useSearchParams()
   const [diplomaId, setDiplomaId] = useState('')
   const [verificationResult, setVerificationResult] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [currentUrl, setCurrentUrl] = useState('')
+  const [copySuccess, setCopySuccess] = useState(false)
 
-  const handleVerify = async () => {
-    if (!diplomaId.trim()) return
+  // Set current URL on client side only
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentUrl(window.location.origin)
+    }
+  }, [])
+
+  // Check for diploma ID in URL parameters with proper initialization
+  useEffect(() => {
+    const idFromUrl = searchParams.get('id')
+    if (idFromUrl) {
+      setDiplomaId(idFromUrl)
+      
+      // Delay auto-verification to ensure hooks are ready
+      const timer = setTimeout(() => {
+        handleVerify(idFromUrl)
+      }, 100) // Small delay to ensure hooks are initialized
+      
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams])
+
+  // Contract hooks for verification
+  const { 
+    data: diplomaData, 
+    isLoading: isDiplomaLoading, 
+    error: diplomaError,
+    refetch: refetchDiploma 
+  } = useReadContract({
+    address: CONTRACTS.DIPLOMA,
+    abi: diplomaAbi,
+    functionName: 'verifyDiploma',
+    args: diplomaId && diplomaId.length === 66 ? [diplomaId as `0x${string}`] : undefined,
+    query: {
+      enabled: false, // We'll trigger manually
+      retry: 2,
+      retryDelay: 1000,
+    },
+  })
+
+  // Get university information for verified diplomas
+  const { 
+    data: universityData,
+    isLoading: isUniversityLoading,
+    refetch: refetchUniversity 
+  } = useReadContract({
+    address: CONTRACTS.REGISTRY,
+    abi: registryAbi,
+    functionName: 'universities',
+    args: verificationResult?.diploma?.university ? [verificationResult.diploma.university] : undefined,
+    query: {
+      enabled: false, // We'll trigger manually
+      retry: 2,
+      retryDelay: 1000,
+    },
+  })
+
+  const handleVerify = async (inputDiplomaId?: string) => {
+    const idToVerify = inputDiplomaId || diplomaId.trim()
+    if (!idToVerify) return
     
     setIsLoading(true)
+    setError(null)
+    setVerificationResult(null)
+    
     try {
-      // TODO: Implement actual verification logic with smart contract
-      // For now, showing mock data
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate API call
+      console.log('Verifying diploma:', idToVerify)
+      
+      // Validate diploma ID format
+      if (!idToVerify.startsWith('0x') || idToVerify.length !== 66) {
+        throw new Error('Invalid diploma ID format. Must be a 32-byte hash starting with 0x')
+      }
+      
+      // Ensure we have a valid diploma ID set for the hooks
+      if (diplomaId !== idToVerify) {
+        setDiplomaId(idToVerify)
+        // Wait a bit for state to update
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      
+      // First, verify the diploma exists and get its data
+      console.log('Fetching diploma data...')
+      const diplomaResult = await refetchDiploma()
+      console.log('Diploma fetch result:', diplomaResult)
+      
+      if (!diplomaResult?.data || !diplomaResult.data[0]) {
+        setVerificationResult({
+          isValid: false,
+          error: 'Diploma not found. This diploma ID does not exist on the blockchain.'
+        })
+        return
+      }
+
+      const [isValid, diploma] = diplomaResult.data
+      console.log('Diploma verification result:', { isValid, diploma })
+
+      if (!isValid) {
+        setVerificationResult({
+          isValid: false,
+          error: 'Invalid diploma. This diploma exists but is not valid.'
+        })
+        return
+      }
+
+      // Get university information
+      console.log('Fetching university data...')
+      const universityResult = await refetchUniversity()
+      console.log('University fetch result:', universityResult)
       
       setVerificationResult({
         isValid: true,
         diploma: {
-          university: '0x1234567890123456789012345678901234567890',
-          student: '0x0987654321098765432109876543210987654321',
-          issueDate: Math.floor(Date.now() / 1000) - 86400 * 30, // 30 days ago
-          isMinted: true,
-          diplomaHash: 'QmExampleHashForDiplomaMetadata123456789'
+          university: diploma.university,
+          student: diploma.student,
+          issueDate: Number(diploma.issueDate),
+          isMinted: diploma.isMinted,
+          diplomaHash: diploma.diplomaHash
         },
-        universityInfo: {
-          name: 'Example University',
-          country: 'United States',
-          isApproved: true
-        }
+        universityInfo: universityResult?.data ? {
+          name: universityResult.data[0],
+          country: universityResult.data[1],
+          isApproved: universityResult.data[2],
+          isRegistered: universityResult.data[3]
+        } : null
       })
-    } catch (error) {
+
+    } catch (error: any) {
       console.error('Verification failed:', error)
+      const errorMessage = error.message || 'Failed to verify diploma. Please check the diploma ID and try again.'
+      setError(errorMessage)
       setVerificationResult({
         isValid: false,
-        error: 'Failed to verify diploma'
+        error: errorMessage
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const clearResults = () => {
+    setVerificationResult(null)
+    setError(null)
+    setDiplomaId('')
+  }
+
+  // Handle copying verification link
+  const handleCopyLink = async () => {
+    try {
+      const verificationUrl = `${currentUrl}/verify?id=${diplomaId}`
+      await navigator.clipboard.writeText(verificationUrl)
+      setCopySuccess(true)
+      
+      // Reset copy success after 2 seconds
+      setTimeout(() => {
+        setCopySuccess(false)
+      }, 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea')
+      textArea.value = `${currentUrl}/verify?id=${diplomaId}`
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      try {
+        document.execCommand('copy')
+        setCopySuccess(true)
+        setTimeout(() => setCopySuccess(false), 2000)
+      } catch (fallbackErr) {
+        alert('Failed to copy link. Please copy manually.')
+      }
+      document.body.removeChild(textArea)
     }
   }
 
@@ -73,22 +222,44 @@ export default function VerifyPage() {
                 <label htmlFor="diplomaId" className="block text-sm font-medium text-gray-700 mb-2">
                   Diploma ID
                 </label>
-                <input
+                <Input
                   id="diplomaId"
                   type="text"
                   value={diplomaId}
                   onChange={(e) => setDiplomaId(e.target.value)}
-                  placeholder="0x1234567890abcdef..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="0x1234567890abcdef... (66 character hash)"
+                  className="font-mono"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  The diploma ID should be a 66-character hash starting with 0x
+                </p>
               </div>
-              <Button 
-                onClick={handleVerify} 
-                disabled={!diplomaId.trim() || isLoading}
-                className="w-full"
-              >
-                {isLoading ? 'Verifying...' : 'Verify Diploma'}
-              </Button>
+              
+              {error && (
+                <Alert className="border-red-200 bg-red-50">
+                  <AlertDescription className="text-red-800">
+                    {error}
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => handleVerify()} 
+                  disabled={!diplomaId.trim() || isLoading}
+                  className="flex-1"
+                >
+                  {isLoading ? 'Verifying...' : 'Verify Diploma'}
+                </Button>
+                {verificationResult && (
+                  <Button 
+                    variant="outline"
+                    onClick={clearResults}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -114,15 +285,32 @@ export default function VerifyPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <h4 className="font-semibold text-gray-900 mb-2">University</h4>
-                        <p className="text-sm text-gray-600">{verificationResult.universityInfo.name}</p>
-                        <p className="text-sm text-gray-500">{verificationResult.universityInfo.country}</p>
-                        <p className="text-xs text-gray-400">
+                        {verificationResult.universityInfo ? (
+                          <>
+                            <p className="text-sm text-gray-600">{verificationResult.universityInfo.name}</p>
+                            <p className="text-sm text-gray-500">{verificationResult.universityInfo.country}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {verificationResult.universityInfo.isApproved ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                  ✓ Approved
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  ⚠ Not Approved
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-500">Loading university information...</p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-1">
                           {formatAddress(verificationResult.diploma.university)}
                         </p>
                       </div>
                       <div>
                         <h4 className="font-semibold text-gray-900 mb-2">Student</h4>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-gray-600 font-mono">
                           {formatAddress(verificationResult.diploma.student)}
                         </p>
                       </div>
@@ -132,7 +320,13 @@ export default function VerifyPage() {
                       <div>
                         <h4 className="font-semibold text-gray-900 mb-2">Issue Date</h4>
                         <p className="text-sm text-gray-600">
-                          {new Date(verificationResult.diploma.issueDate * 1000).toLocaleDateString()}
+                          {new Date(verificationResult.diploma.issueDate * 1000).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
                         </p>
                       </div>
                       <div>
@@ -152,7 +346,7 @@ export default function VerifyPage() {
 
                     <div>
                       <h4 className="font-semibold text-gray-900 mb-2">Metadata Hash</h4>
-                      <p className="text-sm text-gray-600 font-mono break-all">
+                      <p className="text-sm text-gray-600 font-mono break-all bg-gray-50 p-2 rounded">
                         {verificationResult.diploma.diplomaHash}
                       </p>
                     </div>
@@ -170,12 +364,42 @@ export default function VerifyPage() {
                           </h3>
                           <div className="mt-2 text-sm text-green-700">
                             <p>
-                              This diploma has been verified on the blockchain and is authentic. 
-                              It was issued by a verified university and has not been tampered with.
+                              This diploma has been verified on the Arbitrum Sepolia blockchain and is authentic. 
+                              It was issued by {verificationResult.universityInfo?.isApproved ? 'a verified' : 'an'} university and has not been tampered with.
                             </p>
                           </div>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Share this verification */}
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">📤 Share Verification</h4>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Share this verification link to allow others to instantly verify this diploma:
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={currentUrl ? `${currentUrl}/verify?id=${diplomaId}` : 'Loading...'}
+                          readOnly
+                          className="font-mono text-xs bg-gray-50"
+                          disabled={!currentUrl}
+                        />
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleCopyLink}
+                          disabled={!currentUrl || copySuccess}
+                          className={copySuccess ? 'bg-green-50 text-green-600 border-green-200' : ''}
+                        >
+                          {copySuccess ? '✅ Copied!' : '📋 Copy Link'}
+                        </Button>
+                      </div>
+                      {copySuccess && (
+                        <p className="text-sm text-green-600 mt-2">
+                          ✅ Verification link copied to clipboard!
+                        </p>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -217,7 +441,7 @@ export default function VerifyPage() {
                   <div>
                     <h4 className="font-medium text-gray-900">Get the Diploma ID</h4>
                     <p className="text-sm text-gray-600">
-                      Ask the diploma holder for their diploma ID (a unique hash starting with 0x).
+                      Ask the diploma holder for their diploma ID (a unique 66-character hash starting with 0x).
                     </p>
                   </div>
                 </div>
@@ -243,6 +467,14 @@ export default function VerifyPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+              
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                <h4 className="font-medium text-blue-900 mb-2">🔗 Direct Verification Links</h4>
+                <p className="text-sm text-blue-700">
+                  You can also create direct verification links by adding <code className="bg-blue-100 px-1 rounded">?id=DIPLOMA_ID</code> to this page's URL.
+                  These links will automatically verify the diploma when opened.
+                </p>
               </div>
             </CardContent>
           </Card>
