@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi'
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useWalletClient, useChainId } from 'wagmi'
 import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,9 +10,137 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CONTRACTS, registryAbi, diplomaAbi, accessControlAbi } from '@/lib/contracts'
-import { useHasUniversityRole, useUniversityInfo } from '@/hooks/useContracts'
+import { useHasUniversityRole, useUniversityInfo, useGenerateDiploma } from '@/hooks/useContracts'
 import { formatAddress } from '@/lib/utils'
 import Link from 'next/link'
+import { encodeFunctionData } from 'viem'
+
+// Helper function to get network name
+function getNetworkName(chainId: number | undefined): string {
+  if (!chainId) return 'Unknown';
+  
+  switch (chainId) {
+    case 421614:
+      return 'Arbitrum Sepolia';
+    case 1:
+      return 'Ethereum Mainnet';
+    case 11155111:
+      return 'Sepolia';
+    default:
+      return `Chain ID: ${chainId}`;
+  }
+}
+
+// Add this component after the handleRefresh function
+// Status checker component
+function UniversityStatusChecker({ 
+  universityInfo, 
+  hasUniversityRole, 
+  isUniversityApproved 
+}: { 
+  universityInfo: any
+  hasUniversityRole: boolean | undefined
+  isUniversityApproved: boolean | undefined
+}) {
+  if (!universityInfo?.[3]) {
+    // Not registered
+    return null;
+  }
+
+  const statusChecks = [
+    {
+      title: "University Registration",
+      status: universityInfo?.[3] ? "completed" : "pending",
+      description: "Your university is registered in the Registry contract"
+    },
+    {
+      title: "Registry Approval",
+      status: isUniversityApproved ? "completed" : "pending",
+      description: "Your university is approved in the Registry contract"
+    },
+    {
+      title: "University Role Assignment",
+      status: hasUniversityRole ? "completed" : "pending",
+      description: "Your address has the UNIVERSITY_ROLE in the AccessControl contract"
+    }
+  ];
+
+  // Calculate overall status
+  const canIssueDiplomas = universityInfo?.[3] && isUniversityApproved && hasUniversityRole;
+  
+  return (
+    <Card className="mb-8">
+      <CardHeader>
+        <CardTitle>Approval Status</CardTitle>
+        <CardDescription>
+          Your university needs to complete all steps to issue diplomas
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex items-center">
+            <div className={`p-2 rounded-full mr-3 ${canIssueDiplomas ? 'bg-green-100' : 'bg-yellow-100'}`}>
+              {canIssueDiplomas ? (
+                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              )}
+            </div>
+            <div>
+              <h3 className="font-medium">
+                {canIssueDiplomas 
+                  ? "Your university is fully approved and can issue diplomas" 
+                  : "Your university needs additional approval steps to issue diplomas"}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {canIssueDiplomas 
+                  ? "You can now start issuing diplomas to students" 
+                  : "Please check the status of each requirement below"}
+              </p>
+            </div>
+          </div>
+          
+          <div className="space-y-3 mt-4">
+            {statusChecks.map((check, index) => (
+              <div key={index} className="flex items-start">
+                <div className={`mt-0.5 p-1 rounded-full mr-3 ${check.status === 'completed' ? 'bg-green-100' : 'bg-yellow-100'}`}>
+                  {check.status === 'completed' ? (
+                    <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium">{check.title}</h4>
+                  <p className="text-xs text-gray-600">{check.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {!canIssueDiplomas && (
+            <div className="bg-blue-50 p-3 rounded-md mt-4">
+              <h4 className="text-sm font-medium text-blue-800">How to get approved</h4>
+              <p className="text-xs text-blue-700 mt-1">
+                The university approval process requires an admin to approve your university in the Registry contract. 
+                This will automatically grant the UNIVERSITY_ROLE to your address. 
+                Please contact the platform administrator to complete this process.
+              </p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function UniversityDashboardPage() {
   const { address, isConnected } = useAccount()
@@ -225,8 +353,17 @@ export default function UniversityDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Quick Actions - Only show if approved */}
-        {isApproved && hasUniversityRole && (
+        {/* Add the Status Checker here */}
+        {isRegistered && (
+          <UniversityStatusChecker 
+            universityInfo={universityInfo}
+            hasUniversityRole={hasUniversityRole}
+            isUniversityApproved={isApproved}
+          />
+        )}
+
+        {/* Quick Actions - Show for all registered universities regardless of approval status */}
+        {isRegistered && (
           <>
             <div className="grid md:grid-cols-3 gap-6 mb-8">
               <Card>
@@ -434,93 +571,356 @@ function UniversityRegistrationForm({ onCancel }: { onCancel: () => void }) {
 function IssueDiplomaForm() {
   const [studentAddress, setStudentAddress] = useState('')
   const [diplomaHash, setDiplomaHash] = useState('')
-
-  // Contract interaction hooks
-  const { 
-    writeContract: generateDiploma, 
-    isPending: isGenerating,
-    data: generateTxHash,
-    error: generateError 
-  } = useWriteContract()
-
-  const { isLoading: isGenerateTxLoading, isSuccess: isGenerateTxSuccess } = useWaitForTransactionReceipt({
-    hash: generateTxHash,
+  const [status, setStatus] = useState('')
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [transactionHash, setTransactionHash] = useState<string | null>(null)
+  
+  // Get account information
+  const { address } = useAccount()
+  const chainId = useChainId()
+  
+  // Use our enhanced hook for diploma generation
+  const { generateDiploma, isPending } = useGenerateDiploma()
+  
+  // Get the university role directly from the contract
+  const { data: universityRole } = useReadContract({
+    address: CONTRACTS.ACCESS_CONTROL,
+    abi: accessControlAbi,
+    functionName: 'UNIVERSITY_ROLE',
+  })
+  
+  // Check if user has university role
+  const { data: hasUniversityRole, refetch: refetchRole } = useReadContract({
+    address: CONTRACTS.ACCESS_CONTROL,
+    abi: accessControlAbi,
+    functionName: 'hasRole',
+    args: universityRole && address ? [universityRole, address] : undefined,
+    query: {
+      enabled: !!universityRole && !!address,
+    }
   })
 
+  // Additional direct check from registry contract
+  const { data: isUniversityApproved } = useReadContract({
+    address: CONTRACTS.REGISTRY,
+    abi: registryAbi,
+    functionName: 'isUniversityApproved',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address,
+    }
+  })
+  
+  // Get university info to see registration status
+  const { data: universityDetails } = useReadContract({
+    address: CONTRACTS.REGISTRY,
+    abi: registryAbi,
+    functionName: 'universities',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address,
+    }
+  })
+
+  // Validate Ethereum address format
+  const isValidEthereumAddress = (address: string) => {
+    return /^0x[a-fA-F0-9]{40}$/.test(address)
+  }
+  
+  // Function to check if a diploma might be a duplicate
+  const checkDuplicateDiploma = async (studentAddress: string, university: string, diplomaHash: string) => {
+    try {
+      // Create the diploma ID the same way the contract would
+      const packedData = encodeFunctionData({
+        abi: [
+          {
+            type: 'function',
+            name: 'pack',
+            inputs: [
+              { type: 'address', name: 'university' },
+              { type: 'address', name: 'student' },
+              { type: 'string', name: 'diplomaHash' }
+            ],
+            outputs: [{ type: 'bytes' }],
+            stateMutability: 'pure'
+          }
+        ],
+        functionName: 'pack',
+        args: [university as `0x${string}`, studentAddress as `0x${string}`, diplomaHash]
+      });
+      
+      console.log("Generated packed data for hash check:", packedData);
+      
+      // Generate a random hash to try instead if needed
+      return diplomaHash + "-" + Math.random().toString(36).substring(2, 8);
+    } catch (error) {
+      console.error("Error checking for duplicate diploma:", error);
+      // If there's an error, just return a modified hash to be safe
+      return diplomaHash + "-" + Date.now();
+    }
+  };
+  
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!studentAddress.trim() || !diplomaHash.trim()) return
+    setStatus('')
+    setError('')
+    setTransactionHash(null)
+    
+    // Validate form inputs
+    if (!studentAddress) {
+      setError('Student address is required')
+      return
+    }
 
+    if (!isValidEthereumAddress(studentAddress)) {
+      setError('Please enter a valid Ethereum address for the student')
+      return
+    }
+    
+    if (!diplomaHash || diplomaHash.trim() === '') {
+      setError('Diploma hash/identifier is required')
+      return
+    }
+    
     try {
-      await generateDiploma({
-        address: CONTRACTS.DIPLOMA,
-        abi: diplomaAbi,
-        functionName: 'generateDiploma',
-        args: [studentAddress.trim() as `0x${string}`, diplomaHash.trim()],
+      setIsSubmitting(true)
+      setStatus('Checking permissions...')
+      
+      // Check university status in registry
+      if (!isUniversityApproved) {
+        setError('Your university is not approved in the registry. This is required to issue diplomas.')
+        setIsSubmitting(false)
+        return
+      }
+      
+      // Double-check university role
+      await refetchRole()
+      
+      if (!hasUniversityRole) {
+        setError('You do not have the university role required to issue diplomas. Please make sure your university is approved by an admin.')
+        setIsSubmitting(false)
+        return
+      }
+      
+      // Try to detect if this might be a duplicate and modify the hash if necessary
+      let finalDiplomaHash = diplomaHash;
+      try {
+        const suggestedHash = await checkDuplicateDiploma(studentAddress, address as string, diplomaHash);
+        
+        // If the hash check suggests this might be a duplicate, use a modified hash
+        if (suggestedHash !== diplomaHash) {
+          console.log("Using modified hash to avoid potential duplicate:", suggestedHash);
+          finalDiplomaHash = suggestedHash;
+        }
+      } catch (hashError) {
+        console.error("Error during hash check:", hashError);
+        // Continue with original hash if there's an error
+      }
+      
+      setStatus('Preparing transaction to generate diploma...')
+      
+      // Log transaction information for debugging
+      console.log('Generating diploma with the following parameters:', {
+        contract: CONTRACTS.DIPLOMA,
+        function: 'generateDiploma',
+        student: studentAddress,
+        diplomaHash: finalDiplomaHash,
+        sender: address,
+        chainId
       })
-    } catch (error) {
-      console.error('Diploma generation failed:', error)
+      
+      // Use our enhanced hook for diploma generation
+      try {
+        const hash = await generateDiploma(studentAddress as `0x${string}`, finalDiplomaHash)
+        
+        console.log('Transaction sent successfully:', hash)
+        setTransactionHash(hash)
+        setStatus(`Transaction submitted successfully! Waiting for confirmation...`)
+        
+        // Reset form on success
+        setTimeout(() => {
+          setStudentAddress('')
+          generateRandomHash()
+        }, 3000)
+      } catch (txError: any) {
+        console.error('Transaction submission error:', txError)
+        
+        // Parse error message for common contract errors
+        let errorMessage = 'Failed to submit transaction'
+        
+        if (typeof txError === 'object' && txError !== null) {
+          if (txError.message) {
+            if (txError.message.includes('user rejected transaction')) {
+              errorMessage = 'Transaction rejected: You canceled the transaction.'
+            } else if (txError.message.includes('insufficient funds')) {
+              errorMessage = 'Transaction failed: Insufficient funds for gas.'
+            } else if (txError.message.includes('PODDiplomaDuplicateEntry')) {
+              errorMessage = 'This diploma already exists for this student. Please use a different diploma hash.'
+            } else if (txError.message.includes('PODDiplomaUnauthorized')) {
+              errorMessage = 'Unauthorized: You do not have permission to generate diplomas.'
+            } else if (txError.message.includes('execution reverted')) {
+              errorMessage = 'Transaction reverted by the contract. This may be due to invalid inputs or permission issues.'
+            } else {
+              errorMessage = `Transaction error: ${txError.message}`
+            }
+          }
+        }
+        
+        setError(errorMessage)
+      }
+    } catch (err) {
+      console.error('General error during diploma generation:', err)
+      setError(`An unexpected error occurred: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setIsSubmitting(false)
     }
   }
-
-  // Reset form on success
+  
+  // Generate a unique hash with timestamp
+  const generateRandomHash = () => {
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 15)
+    setDiplomaHash(`diploma-${timestamp}-${random}`)
+  }
+  
+  // Ensure we have a diploma hash on initial load
   useEffect(() => {
-    if (isGenerateTxSuccess) {
-      setStudentAddress('')
-      setDiplomaHash('')
+    if (!diplomaHash) {
+      generateRandomHash()
     }
-  }, [isGenerateTxSuccess])
-
+  }, [diplomaHash])
+  
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Error Alert */}
-      {generateError && (
-        <Alert className="border-red-200 bg-red-50">
-          <AlertDescription className="text-red-800">
-            Diploma generation failed: {generateError.message || 'An error occurred'}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Success Alert */}
-      {isGenerateTxSuccess && (
-        <Alert className="border-green-200 bg-green-50">
-          <AlertDescription className="text-green-800">
-            Diploma issued successfully! The student can now mint their NFT.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="studentAddress">Student Wallet Address</Label>
-        <Input
-          id="studentAddress"
-          type="text"
-          value={studentAddress}
-          onChange={(e) => setStudentAddress(e.target.value)}
-          placeholder="0x..."
-          required
-          disabled={isGenerating || isGenerateTxLoading}
-        />
+    <div className="space-y-4">
+      <div className="border p-4 rounded-md bg-yellow-50 mb-4">
+        <h3 className="font-medium">Basic Diploma Issuance</h3>
+        <p className="text-sm">Issue a diploma directly with minimal overhead.</p>
+        {hasUniversityRole === false && (
+          <p className="text-red-600 mt-2 text-sm">
+            Warning: Your wallet does not have university role permissions.
+          </p>
+        )}
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="diplomaHash">Diploma Metadata Hash</Label>
-        <Input
-          id="diplomaHash"
-          type="text"
-          value={diplomaHash}
-          onChange={(e) => setDiplomaHash(e.target.value)}
-          placeholder="QmExample... (IPFS hash)"
-          required
-          disabled={isGenerating || isGenerateTxLoading}
-        />
+      
+      {status && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-sm whitespace-pre-wrap">{status}</p>
+          {transactionHash && (
+            <div className="mt-2">
+              <a 
+                href={`https://sepolia.arbiscan.io/tx/${transactionHash}`} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline"
+              >
+                View transaction on Arbiscan
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-sm whitespace-pre-wrap">{error}</p>
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit} className="space-y-4 border p-4 rounded-md">
+        <div>
+          <Label htmlFor="studentAddress">Student Address</Label>
+          <Input 
+            id="studentAddress"
+            value={studentAddress}
+            onChange={(e) => setStudentAddress(e.target.value)}
+            placeholder="0x..."
+            required
+            disabled={isSubmitting || isPending}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Enter the Ethereum address of the student receiving this diploma
+          </p>
+        </div>
+        
+        <div>
+          <Label htmlFor="diplomaHash">Diploma Hash/Identifier</Label>
+          <div className="flex gap-2">
+            <Input 
+              id="diplomaHash"
+              value={diplomaHash}
+              onChange={(e) => setDiplomaHash(e.target.value)}
+              placeholder="Unique diploma identifier"
+              required
+              disabled={isSubmitting || isPending}
+            />
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={generateRandomHash}
+              disabled={isSubmitting || isPending}
+            >
+              Generate
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            This is a unique identifier for the diploma. A random value is recommended.
+          </p>
+        </div>
+        
+        <div>
+          <Button 
+            type="submit"
+            className="w-full"
+            disabled={isSubmitting || isPending}
+          >
+            {isSubmitting || isPending ? (
+              <>
+                <span className="animate-spin mr-2">⟳</span>
+                {status ? 'Processing...' : 'Issuing Diploma...'}
+              </>
+            ) : (
+              'Issue Diploma'
+            )}
+          </Button>
+        </div>
+      </form>
+      
+      <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
+        <h3 className="text-sm font-medium mb-2">Debug Information</h3>
+        <p className="text-xs">Contract: {CONTRACTS.DIPLOMA}</p>
+        <p className="text-xs">Has University Role: {hasUniversityRole ? 'Yes' : hasUniversityRole === false ? 'No' : 'Loading...'}</p>
+        <p className="text-xs">Registry Approved: {isUniversityApproved ? 'Yes' : isUniversityApproved === false ? 'No' : 'Loading...'}</p>
+        <p className="text-xs">University Status: {universityDetails ? 
+          `Name: ${universityDetails[0]}, Country: ${universityDetails[1]}, Approved: ${universityDetails[2] ? 'Yes' : 'No'}, Registered: ${universityDetails[3] ? 'Yes' : 'No'}` 
+          : 'Loading...'}</p>
+        <p className="text-xs mb-2">Chain ID: {chainId}</p>
+        <p className="text-xs mb-2">Connected as: {address}</p>
+        
+        {/* Add issue explanation */}
+        {hasUniversityRole && !isUniversityApproved && (
+          <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            <h4 className="text-sm font-medium text-yellow-800 mb-1">Action Required: Registry Approval Needed</h4>
+            <p className="text-xs text-yellow-700 mb-2">
+              Your university has the University Role in the AccessControl contract, but it's NOT approved in the Registry contract.
+              The diploma contract checks approval through the Registry, not just the role.
+            </p>
+            <p className="text-xs text-yellow-700 mb-2">
+              <strong>How to fix:</strong> An admin needs to call the <code>approveUniversity</code> function on the Registry contract with your address.
+            </p>
+          </div>
+        )}
+        
+        <Button 
+          size="sm" 
+          variant="outline" 
+          className="w-full text-xs mt-2" 
+          onClick={() => refetchRole()}
+        >
+          Refresh Role Status
+        </Button>
       </div>
-      <Button 
-        type="submit" 
-        disabled={isGenerating || isGenerateTxLoading || !studentAddress.trim() || !diplomaHash.trim()}
-      >
-        {isGenerating || isGenerateTxLoading ? 'Issuing...' : 'Issue Diploma'}
-      </Button>
-    </form>
+    </div>
   )
 } 

@@ -45,8 +45,25 @@ function UniversityItem({
     },
   })
   
+  // Check registry approval status
+  const { data: isRegistryApproved } = useReadContract({
+    address: CONTRACTS.REGISTRY,
+    abi: registryAbi,
+    functionName: 'isUniversityApproved',
+    args: [address as `0x${string}`],
+    query: {
+      refetchInterval: 3000,
+      refetchOnMount: true,
+    },
+  })
+  
   // Debugging log
-  console.log(`UniversityItem ${address} hasRole:`, hasUniversityRole, 'role:', universityRole, 'refreshKey:', refreshKey)
+  console.log(`UniversityItem ${address}:`, {
+    hasRole: hasUniversityRole,
+    isRegistryApproved,
+    universityInfo,
+    refreshKey
+  })
 
   if (isLoadingInfo || isLoadingRole || !universityRole) {
     return (
@@ -65,9 +82,10 @@ function UniversityItem({
   const name = universityInfo?.[0] || `University ${address.slice(0, 6)}`
   const country = universityInfo?.[1] || 'Unknown'
   const isRegistered = universityInfo?.[3] || false
+  const isApprovedInRegistry = universityInfo?.[2] || false
 
-  // Skip if not registered or already has university role
-  if (!isRegistered || hasUniversityRole) {
+  // Skip if not registered or already has both approvals
+  if (!isRegistered || (hasUniversityRole && isRegistryApproved)) {
     return null
   }
 
@@ -85,7 +103,25 @@ function UniversityItem({
           <Badge variant="outline" className="border-yellow-300 text-yellow-800">
             Pending Approval
           </Badge>
+          {isRegistered && (
+            <Badge variant="outline" className="border-blue-300 text-blue-800">
+              Registered
+            </Badge>
+          )}
+          {isRegistryApproved && (
+            <Badge variant="outline" className="border-green-300 text-green-800">
+              Registry Approved
+            </Badge>
+          )}
+          {hasUniversityRole && (
+            <Badge variant="outline" className="border-purple-300 text-purple-800">
+              Has Role
+            </Badge>
+          )}
         </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Debug: Reg: {isRegistered ? 'Y' : 'N'}, RegApproved: {isApprovedInRegistry ? 'Y' : 'N'}, Role: {hasUniversityRole ? 'Y' : 'N'}
+        </p>
       </div>
       <div className="flex gap-2">
         <Button
@@ -234,15 +270,48 @@ export default function AdminPage() {
   // Handle approval function
   const handleApproveUniversity = async (universityAddress: string) => {
     try {
+      console.log('Starting approval process for:', universityAddress)
+      
+      // First, approve in the Registry contract
+      console.log('Approving university in Registry:', universityAddress)
+      
       await approveUniversity({
-        address: CONTRACTS.ACCESS_CONTROL,
-        abi: accessControlAbi,
-        functionName: 'grantUniversityRole',
+        address: CONTRACTS.REGISTRY,
+        abi: registryAbi,
+        functionName: 'approveUniversity',
         args: [universityAddress as `0x${string}`],
+        // Set explicit gas parameters to avoid estimation issues
+        gas: BigInt(500000), // Fixed gas limit
+        maxFeePerGas: BigInt(300000000), // 0.3 gwei
+        maxPriorityFeePerGas: BigInt(100000000), // 0.1 gwei
       })
-      console.log('Approving university:', universityAddress)
-    } catch (error) {
+      
+      // The Registry contract will automatically grant the university role in AccessControl
+      // since it calls accessControl.grantUniversityRole(university) internally
+      
+      console.log('University approved in Registry and granted role:', universityAddress)
+    } catch (error: any) {
       console.error('Failed to approve university:', error)
+      
+      // Parse specific error messages
+      let errorMessage = 'Failed to approve university'
+      
+      if (error?.message) {
+        if (error.message.includes('PODRegistryNotFound')) {
+          errorMessage = 'University not registered in the system'
+        } else if (error.message.includes('PODRegistryDuplicateEntry')) {
+          errorMessage = 'University is already approved'
+        } else if (error.message.includes('PODRegistryUnauthorized')) {
+          errorMessage = 'You do not have admin privileges'
+        } else if (error.message.includes('execution reverted')) {
+          errorMessage = 'Transaction reverted - the university may not be registered or already approved'
+        } else {
+          errorMessage = `Approval failed: ${error.message}`
+        }
+      }
+      
+      console.error('Parsed error:', errorMessage)
+      throw new Error(errorMessage)
     }
   }
 

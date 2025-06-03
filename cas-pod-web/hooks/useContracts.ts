@@ -101,7 +101,75 @@ export function useRegisterUniversity() {
 
 // Hook for diploma generation
 export function useGenerateDiploma() {
-  return useWriteContract()
+  const { writeContractAsync, isPending, isSuccess, error } = useWriteContract()
+  
+  const generateDiploma = async (studentAddress: `0x${string}`, diplomaHash: string) => {
+    if (!studentAddress || !diplomaHash) {
+      throw new Error('Student address and diploma hash are required')
+    }
+    
+    // First attempt with higher gas limit
+    try {
+      console.log("Attempting to generate diploma with first gas configuration")
+      const txHash = await writeContractAsync({
+        address: CONTRACTS.DIPLOMA,
+        abi: diplomaAbi,
+        functionName: 'generateDiploma',
+        args: [studentAddress, diplomaHash],
+        // Set explicit gas parameters
+        gas: BigInt(800000), // Higher gas limit
+        maxFeePerGas: BigInt(500000000), // 0.5 gwei
+        maxPriorityFeePerGas: BigInt(200000000), // 0.2 gwei
+      })
+      
+      return txHash
+    } catch (error: any) {
+      // Extract error message
+      const errorMessage = error?.message || String(error)
+      console.error('First attempt failed:', errorMessage)
+      
+      // Check for specific errors
+      if (errorMessage.includes('PODDiplomaUnauthorized')) {
+        throw new Error('Your address is not authorized as a university. Please make sure you are approved by an admin.')
+      }
+      
+      if (errorMessage.includes('PODDiplomaDuplicateEntry')) {
+        throw new Error('This diploma already exists for this student. Please use a different diploma hash.')
+      }
+      
+      if (errorMessage.includes('execution reverted')) {
+        // Try again with different gas parameters
+        try {
+          console.log("Retrying with alternate gas configuration")
+          const txHash = await writeContractAsync({
+            address: CONTRACTS.DIPLOMA,
+            abi: diplomaAbi,
+            functionName: 'generateDiploma',
+            args: [studentAddress, diplomaHash],
+            // Different gas configuration
+            gas: BigInt(1000000), // Even higher gas limit
+            maxFeePerGas: BigInt(300000000), // 0.3 gwei
+            maxPriorityFeePerGas: BigInt(100000000), // 0.1 gwei
+          })
+          
+          return txHash
+        } catch (retryError) {
+          console.error('Second attempt failed:', retryError)
+          throw new Error('Transaction reverted by the contract. You may not have university permissions or the diploma hash might already exist.')
+        }
+      }
+      
+      // Rethrow the original error
+      throw error
+    }
+  }
+  
+  return { 
+    generateDiploma, 
+    isPending, 
+    isSuccess, 
+    error 
+  }
 }
 
 // Hook for diploma minting
