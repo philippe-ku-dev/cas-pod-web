@@ -174,5 +174,73 @@ export function useGenerateDiploma() {
 
 // Hook for diploma minting
 export function useMintDiploma() {
-  return useWriteContract()
+  const { writeContractAsync, isPending, isSuccess, error } = useWriteContract()
+  
+  const mintDiploma = async (diplomaId: `0x${string}`, metadataURI: string) => {
+    if (!diplomaId || !metadataURI) {
+      throw new Error('Diploma ID and metadata URI are required')
+    }
+    
+    // First attempt with optimized gas parameters
+    try {
+      console.log("Attempting to mint diploma with first gas configuration")
+      const txHash = await writeContractAsync({
+        address: CONTRACTS.TOKEN,
+        abi: tokenAbi,
+        functionName: 'mintDiploma',
+        args: [diplomaId, metadataURI],
+        // Set explicit gas parameters for minting
+        gas: BigInt(500000), // Reasonable gas limit for minting
+        maxFeePerGas: BigInt(500000000), // 0.5 gwei
+        maxPriorityFeePerGas: BigInt(200000000), // 0.2 gwei
+      })
+      
+      return txHash
+    } catch (error: any) {
+      // Extract error message
+      const errorMessage = error?.message || String(error)
+      console.error('First minting attempt failed:', errorMessage)
+      
+      // Check for specific errors
+      if (errorMessage.includes('InvalidDiplomaError')) {
+        throw new Error('This diploma is invalid or has already been minted.')
+      }
+      
+      if (errorMessage.includes('UnauthorizedError')) {
+        throw new Error('You are not authorized to mint this diploma. Only the diploma owner can mint.')
+      }
+      
+      if (errorMessage.includes('execution reverted')) {
+        // Try again with different gas parameters
+        try {
+          console.log("Retrying minting with alternate gas configuration")
+          const txHash = await writeContractAsync({
+            address: CONTRACTS.TOKEN,
+            abi: tokenAbi,
+            functionName: 'mintDiploma',
+            args: [diplomaId, metadataURI],
+            // Alternative gas configuration
+            gas: BigInt(700000), // Higher gas limit
+            maxFeePerGas: BigInt(300000000), // 0.3 gwei
+            maxPriorityFeePerGas: BigInt(100000000), // 0.1 gwei
+          })
+          
+          return txHash
+        } catch (retryError) {
+          console.error('Second minting attempt failed:', retryError)
+          throw new Error('Transaction reverted. You may not own this diploma or it may already be minted.')
+        }
+      }
+      
+      // Rethrow the original error
+      throw error
+    }
+  }
+  
+  return { 
+    mintDiploma, 
+    isPending, 
+    isSuccess, 
+    error 
+  }
 } 

@@ -5,10 +5,11 @@ import { Header } from '@/components/header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useStudentDiplomas } from '@/hooks/useContracts'
+import { useStudentDiplomas, useMintDiploma } from '@/hooks/useContracts'
 import { formatAddress } from '@/lib/utils'
 import { CONTRACTS, tokenAbi } from '@/lib/contracts'
 import Link from 'next/link'
+import { useState } from 'react'
 
 export default function StudentDashboardPage() {
   const { address, isConnected } = useAccount()
@@ -171,46 +172,76 @@ export default function StudentDashboardPage() {
 
 // Component for individual diploma cards
 function DiplomaCard({ diplomaId }: { diplomaId: string }) {
-  // Contract interaction hooks for minting
+  // Use enhanced minting hook with gas optimization
   const { 
-    writeContract: mintDiploma, 
+    mintDiploma, 
     isPending: isMinting,
-    data: mintTxHash,
+    isSuccess: isMintSuccess,
     error: mintError 
-  } = useWriteContract()
+  } = useMintDiploma()
+  
+  const [txHash, setTxHash] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
 
   const { isLoading: isMintTxLoading, isSuccess: isMintTxSuccess } = useWaitForTransactionReceipt({
-    hash: mintTxHash,
+    hash: txHash as `0x${string}` | undefined,
   })
 
   const handleMintNFT = async () => {
     try {
-      await mintDiploma({
-        address: CONTRACTS.TOKEN,
-        abi: tokenAbi,
-        functionName: 'mintDiploma',
-        args: [diplomaId as `0x${string}`, `https://metadata.pod-chain.io/${diplomaId}`],
-      })
-    } catch (error) {
+      setLocalError(null)
+      console.log('Starting minting process for diploma:', diplomaId)
+      
+      const hash = await mintDiploma(
+        diplomaId as `0x${string}`, 
+        `https://metadata.pod-chain.io/${diplomaId}`
+      )
+      
+      setTxHash(hash)
+      console.log('Minting transaction submitted:', hash)
+    } catch (error: any) {
       console.error('Minting failed:', error)
+      setLocalError(error.message || 'Minting failed. Please try again.')
     }
   }
 
   return (
     <div className="border rounded-lg p-4 bg-white">
-      {/* Minting Status Messages */}
-      {mintError && (
+      {/* Error Messages */}
+      {(mintError || localError) && (
         <Alert className="mb-4 border-red-200 bg-red-50">
           <AlertDescription className="text-red-800">
-            Minting failed: {mintError.message || 'An error occurred'}
+            {localError || mintError?.message || 'An error occurred during minting'}
           </AlertDescription>
         </Alert>
       )}
 
+      {/* Success Messages */}
       {isMintTxSuccess && (
         <Alert className="mb-4 border-green-200 bg-green-50">
           <AlertDescription className="text-green-800">
-            NFT minted successfully! Check your wallet.
+            NFT minted successfully! 
+            {txHash && (
+              <span>
+                {' '}View transaction: <a 
+                  href={`https://sepolia.arbiscan.io/tx/${txHash}`}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  {txHash.slice(0, 10)}...{txHash.slice(-8)}
+                </a>
+              </span>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Transaction Status */}
+      {txHash && isMintTxLoading && (
+        <Alert className="mb-4 border-blue-200 bg-blue-50">
+          <AlertDescription className="text-blue-800">
+            Transaction submitted. Waiting for confirmation...
           </AlertDescription>
         </Alert>
       )}
@@ -229,9 +260,9 @@ function DiplomaCard({ diplomaId }: { diplomaId: string }) {
           <Button 
             size="sm" 
             onClick={handleMintNFT}
-            disabled={isMinting || isMintTxLoading}
+            disabled={isMinting || isMintTxLoading || isMintTxSuccess}
           >
-            {isMinting || isMintTxLoading ? 'Minting...' : 'Mint NFT'}
+            {isMinting || isMintTxLoading ? 'Minting...' : isMintTxSuccess ? 'Minted!' : 'Mint NFT'}
           </Button>
         </div>
       </div>
