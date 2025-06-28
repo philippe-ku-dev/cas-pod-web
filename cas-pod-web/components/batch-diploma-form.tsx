@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useAccount, useChainId } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -107,7 +106,8 @@ export function BatchDiplomaForm() {
       } else {
         setError('No valid entries found in CSV input')
       }
-    } catch (err) {
+    } catch (error) {
+      console.error('CSV parsing error:', error)
       setError('Failed to parse CSV input. Please check the format.')
     }
   }
@@ -180,9 +180,9 @@ export function BatchDiplomaForm() {
         setCsvInput('')
       }, 3000)
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Batch generation error:', err)
-      setError(err.message || 'Failed to generate diplomas')
+      setError(err instanceof Error ? err.message : 'Failed to generate diplomas')
     } finally {
       setIsSubmitting(false)
     }
