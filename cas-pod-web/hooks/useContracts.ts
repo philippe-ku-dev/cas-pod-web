@@ -189,6 +189,107 @@ export function useGenerateDiploma() {
   }
 }
 
+// Hook for batch diploma generation
+export function useBatchGenerateDiplomas() {
+  const { writeContractAsync, isPending, isSuccess, error } = useWriteContract()
+  
+  const batchGenerateDiplomas = async (
+    studentAddresses: `0x${string}`[], 
+    diplomaHashes: string[]
+  ) => {
+    if (!studentAddresses?.length || !diplomaHashes?.length) {
+      throw new Error('Student addresses and diploma hashes arrays are required')
+    }
+    
+    if (studentAddresses.length !== diplomaHashes.length) {
+      throw new Error('Student addresses and diploma hashes arrays must have the same length')
+    }
+    
+    if (studentAddresses.length > 100) {
+      throw new Error('Batch size cannot exceed 100 diplomas')
+    }
+    
+    // Validate all addresses
+    for (const address of studentAddresses) {
+      if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        throw new Error(`Invalid student address: ${address}`)
+      }
+    }
+    
+    // Validate all diploma hashes
+    for (const hash of diplomaHashes) {
+      if (!hash || hash.trim() === '') {
+        throw new Error('All diploma hashes must be non-empty')
+      }
+    }
+    
+    try {
+      console.log(`Attempting to batch generate ${studentAddresses.length} diplomas`)
+      const txHash = await writeContractAsync({
+        address: CONTRACTS.DIPLOMA,
+        abi: diplomaAbi,
+        functionName: 'batchGenerateDiplomas',
+        args: [studentAddresses, diplomaHashes],
+        // Set explicit gas parameters for batch operation
+        gas: BigInt(Math.min(5000000, 150000 + (studentAddresses.length * 200000))), // Dynamic gas based on batch size
+        maxFeePerGas: BigInt(500000000), // 0.5 gwei
+        maxPriorityFeePerGas: BigInt(200000000), // 0.2 gwei
+      })
+      
+      return txHash
+    } catch (error: any) {
+      // Extract error message
+      const errorMessage = error?.message || String(error)
+      console.error('Batch generation failed:', errorMessage)
+      
+      // Check for specific errors
+      if (errorMessage.includes('PODDiplomaUnauthorized')) {
+        throw new Error('Your address is not authorized as a university. Please make sure you are approved by an admin.')
+      }
+      
+      if (errorMessage.includes('PODDiplomaDuplicateEntry')) {
+        throw new Error('One or more diplomas already exist for the provided students. Please check for duplicates.')
+      }
+      
+      if (errorMessage.includes('PODDiplomaInvalidInput')) {
+        throw new Error('Invalid input provided. Check that all addresses are valid and arrays match in length.')
+      }
+      
+      if (errorMessage.includes('execution reverted')) {
+        // Try again with higher gas limit
+        try {
+          console.log("Retrying batch generation with higher gas limit")
+          const txHash = await writeContractAsync({
+            address: CONTRACTS.DIPLOMA,
+            abi: diplomaAbi,
+            functionName: 'batchGenerateDiplomas',
+            args: [studentAddresses, diplomaHashes],
+            // Higher gas configuration
+            gas: BigInt(Math.min(8000000, 200000 + (studentAddresses.length * 300000))), // Even higher dynamic gas
+            maxFeePerGas: BigInt(300000000), // 0.3 gwei
+            maxPriorityFeePerGas: BigInt(100000000), // 0.1 gwei
+          })
+          
+          return txHash
+        } catch (retryError) {
+          console.error('Batch generation retry failed:', retryError)
+          throw new Error('Batch transaction failed. You may not have university permissions or some diplomas might already exist.')
+        }
+      }
+      
+      // Rethrow the original error
+      throw error
+    }
+  }
+  
+  return { 
+    batchGenerateDiplomas, 
+    isPending, 
+    isSuccess, 
+    error 
+  }
+}
+
 // Hook for diploma minting
 export function useMintDiploma() {
   const { writeContractAsync, isPending, isSuccess, error } = useWriteContract()

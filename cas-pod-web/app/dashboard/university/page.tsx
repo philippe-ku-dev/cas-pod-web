@@ -14,6 +14,7 @@ import { useHasUniversityRole, useUniversityInfo, useGenerateDiploma } from '@/h
 import { formatAddress } from '@/lib/utils'
 import Link from 'next/link'
 import { encodeFunctionData } from 'viem'
+import { BatchDiplomaForm } from '@/components/batch-diploma-form'
 
 // Helper function to get network name
 function getNetworkName(chainId: number | undefined): string {
@@ -144,10 +145,13 @@ function UniversityStatusChecker({
 
 export default function UniversityDashboardPage() {
   const { address, isConnected } = useAccount()
+  const chainId = useChainId()
+  const [showRegistrationForm, setShowRegistrationForm] = useState(false)
+  const [showBatchForm, setShowBatchForm] = useState(false)
+
+  // University info and role checks
   const { data: universityInfo, isLoading: loadingInfo, refetch: refetchInfo } = useUniversityInfo(address)
   const { data: hasUniversityRole, isLoading: loadingRole, refetch: refetchRole } = useHasUniversityRole(address)
-  const [showRegistrationForm, setShowRegistrationForm] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
 
   // Get the university role directly from the contract
   const { data: universityRole } = useReadContract({
@@ -177,7 +181,6 @@ export default function UniversityDashboardPage() {
 
   // Handle manual refresh
   const handleRefresh = async () => {
-    setRefreshing(true)
     try {
       await Promise.all([
         refetchInfo(),
@@ -186,8 +189,6 @@ export default function UniversityDashboardPage() {
       ])
     } catch (error) {
       console.error('Error refreshing data:', error)
-    } finally {
-      setRefreshing(false)
     }
   }
 
@@ -242,13 +243,10 @@ export default function UniversityDashboardPage() {
                 variant="outline" 
                 size="sm" 
                 onClick={handleRefresh}
-                disabled={refreshing || loadingInfo || loadingRole}
+                disabled={loadingInfo || loadingRole}
               >
-                {refreshing ? (
-                  <>
-                    <span className="animate-spin mr-1">⟳</span> 
-                    Refreshing...
-                  </>
+                {loadingInfo || loadingRole ? (
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
                 ) : (
                   <>
                     <svg 
@@ -357,7 +355,7 @@ export default function UniversityDashboardPage() {
         {isRegistered && (
           <UniversityStatusChecker 
             universityInfo={universityInfo}
-            hasUniversityRole={hasUniversityRole}
+            hasUniversityRole={directRoleCheck}
             isUniversityApproved={isApproved}
           />
         )}
@@ -386,7 +384,14 @@ export default function UniversityDashboardPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full" variant="outline">Batch Issue</Button>
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => setShowBatchForm(!showBatchForm)}
+                    disabled={!isApproved || !directRoleCheck}
+                  >
+                    {showBatchForm ? 'Hide Batch Form' : 'Batch Issue Diplomas'}
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -398,7 +403,16 @@ export default function UniversityDashboardPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full" variant="outline">View Stats</Button>
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    disabled={!isApproved || !directRoleCheck}
+                  >
+                    Coming Soon
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Diploma issuance analytics and reporting
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -415,6 +429,13 @@ export default function UniversityDashboardPage() {
                 <IssueDiplomaForm />
               </CardContent>
             </Card>
+
+            {/* Batch Diploma Form */}
+            {showBatchForm && (
+              <div className="mt-8">
+                <BatchDiplomaForm />
+              </div>
+            )}
           </>
         )}
 
